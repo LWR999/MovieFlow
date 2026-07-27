@@ -5,7 +5,9 @@ CREATE TABLE movies (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     original_path TEXT NOT NULL UNIQUE,
     source_type TEXT NOT NULL, -- 'bdmv', 'mkv', 'mp4'
-    status TEXT NOT NULL DEFAULT 'discovered', -- discovered, preprocessed, processed, in_library
+    status TEXT NOT NULL DEFAULT 'incoming', -- incoming, discovered, preprocessed, processed, in_library
+    -- incoming: raw item found in completed/, awaiting TMDb match + move to staging/
+    -- discovered: matched and sitting in staging/<category>/, ready for pre-processing
     title TEXT,
     year INTEGER,
     clean_title TEXT, -- Plex-safe title used for naming

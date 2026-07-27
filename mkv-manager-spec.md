@@ -7,6 +7,8 @@ movie download pipeline that goes:
 
 ```
 /home/dl/torrents/completed/           incoming torrents land here (unsorted), plus TV/ (out of scope)
+        │
+        ▼  STAGE 0: Incoming (TMDb match + sort into staging/'s category folders)
 /home/dl/torrents/staging/{1080p,4K,Blurays,Foreign}
         │
         ▼  STAGE 1: Intake / Pre-processing
@@ -14,10 +16,15 @@ movie download pipeline that goes:
         ▼  STAGE 3: Library (copy to final Plex library paths)
 ```
 
-The app's intake scan root is `/home/dl/torrents/staging/`, not `completed/`.
-`completed/` is upstream of this app (raw torrent client output, sorted into
-`staging/`'s category folders outside the app) and is never scanned.
-`completed/TV/` is out of scope regardless — never touch it.
+`completed/` is scanned by the **Incoming** stage (not Intake) - raw torrent
+client output, unsorted. Incoming matches each item against TMDb (same
+picker as Intake used to do) and, on confirmation, moves it into
+`staging/`'s category folder (`Blurays` for BDMV, `Foreign` if
+`original_language != 'en'`, else `4K`/`1080p` by resolution - same rule as
+section 1.1). Only once an item has been moved into `staging/` does Intake
+see it - by that point it already has a confirmed TMDb match, so Intake no
+longer does its own matching; it just lists staged movies ready to
+pre-process. `completed/TV/` is out of scope regardless — never touch it.
 
 Existing shell scripts exist for parts of this (MP4→MKV conversion via ffmpeg, possibly BDMV
 handling). The user will share these on request if Claude Code gets stuck reverse-engineering
@@ -132,31 +139,47 @@ This is a best-effort first guess only. **The UI must let you edit title + year 
 
 ---
 
-## 6. Stage 1 — Intake / Discovery screen
+## 6. Stage 0 — Incoming screen, and Stage 1 — Intake screen
 
-On load, scan `/home/dl/torrents/staging/{1080p,4K,Blurays,Foreign}` for:
-- Top-level `.mkv` or `.mp4` files directly in these folders (not yet organized into a movie
-  folder), and
+### 6a. Stage 0 — Incoming screen
+
+On load, scan `/home/dl/torrents/completed/` (top-level only, not `TV/`) for:
+- Top-level `.mkv` or `.mp4` files directly in `completed/`, and
 - Subfolders containing `.mkv`/`.mp4` files, or a `BDMV` package.
 
 Anything found that isn't already a recorded row in SQLite (matched by original path) gets a new
-row created in `status = discovered`.
+row created in `status = incoming`.
 
-For each item show:
-- Proposed IMDb-style filename (after TMDb match — see above; shows "needs match" if unconfirmed)
-- Poster thumbnail (once matched)
+For each item show the same title/year parsing, TMDb match picker, resolution/HDR/audio
+probing, type badge, and foreign checkbox as Intake used to show (see section 6b) - matching
+here is identical to how it always worked, just one stage earlier. Once matched, additionally
+show the **proposed destination category** (`Blurays` if BDMV, else `Foreign` if the foreign
+checkbox is set, else `4K`/`1080p` by resolution - same rule as section 1.1) and a **"Move to
+staging"** button. Clicking it moves the raw item (unchanged - no renaming, no remuxing yet)
+into `staging/<category>/`, blocking with the same "destination already exists" collision state
+as elsewhere if something with that name already exists there. On a successful move, `status`
+becomes `discovered` and the row disappears from Incoming, appearing on Intake instead.
+
+`completed/` and `staging/` are on the same filesystem, so this move is a plain rename, not a
+copy+verify+delete - no background job/progress needed, it's effectively instant regardless of
+file size.
+
+### 6b. Stage 1 — Intake screen
+
+Lists all `status = discovered` movies - i.e. already TMDb-matched and sitting in
+`staging/<category>/`, per Stage 0 above. For each item show:
+- Proposed IMDb-style filename (clean title + year) and poster thumbnail
 - Type badge: `BDMV (unmuxed)` / `MKV` / `MP4 (needs container remux)`
 - Resolution + 4K HDR flavor if detected (`HDR10`, `DV`, `HDR10+`, `SDR`) — best-effort, may show
   "unknown" if `ffprobe`/DV detection is inconclusive; that's fine, don't block on it
 - Audio track summary (language + codec + channels per track, e.g. `English DTS-HD MA 5.1,
   Russian AC3 5.1, Commentary (English) AC3 2.0`)
-- Foreign checkbox (defaulted from TMDb `original_language`, editable)
+- Foreign checkbox (defaulted from TMDb `original_language`, editable) - overriding here still
+  does not re-trigger a re-match or move, only affects the audio-track-retention rule
+- A "re-match" link back to the same TMDb picker, in case the Stage 0 match was wrong
 - Select checkbox (for bulk actions) + per-row delete button
-- A "match" indicator/button — clicking opens the TMDb candidate picker described above; must be
-  resolved (confirmed) before pre-processing can run on that row
 
-Bulk actions bar: select all / none, "Delete selected", "Pre-process selected" (disabled/greyed
-for any selected row that hasn't been TMDb-confirmed yet — show why).
+Bulk actions bar: select all / none, "Delete selected", "Pre-process selected".
 
 ---
 

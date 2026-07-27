@@ -12,7 +12,7 @@ DURATION_TOLERANCE_SECONDS = 2.0
 DURATION_TOLERANCE_FRACTION = 0.02
 
 
-def _route_folder(is_foreign, resolution):
+def route_folder(is_foreign, resolution):
     if is_foreign:
         return "Foreign"
     if resolution == "2160p":
@@ -53,7 +53,7 @@ def _cleanup_extra_files(working_folder, keep_path):
 
 
 def _move_to_destination(conn, movie_id, movie, working_folder, folder_name):
-    dest_folder_name = _route_folder(movie["is_foreign"], movie["resolution"])
+    dest_folder_name = route_folder(movie["is_foreign"], movie["resolution"])
     destination = Path(config.TORRENTS_ROOT) / dest_folder_name / folder_name
 
     if working_folder.parent == destination.parent:

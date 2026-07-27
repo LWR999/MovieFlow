@@ -7,6 +7,7 @@ from flask import Flask, abort, jsonify, redirect, render_template, request, sen
 
 import config
 import db
+import incoming as incoming_stage
 import jobs
 import library as library_job
 import naming
@@ -39,6 +40,36 @@ def create_app():
             cache_path.write_bytes(resp.content)
 
         return send_file(cache_path, mimetype="image/jpeg")
+
+    @app.route("/incoming")
+    def incoming():
+        conn = db.get_db()
+        incoming_stage.sync_incoming(conn)
+        rows = conn.execute(
+            "SELECT * FROM movies WHERE status = 'incoming' ORDER BY created_at DESC"
+        ).fetchall()
+
+        movies = []
+        for row in rows:
+            m = dict(row)
+            if m["tmdb_id"]:
+                m["proposed_category"] = incoming_stage.category_for(
+                    m["source_type"], m["is_foreign"], m["resolution"]
+                )
+            else:
+                m["proposed_category"] = None
+            movies.append(m)
+
+        return render_template("incoming.html", movies=movies)
+
+    @app.route("/movies/<int:movie_id>/move-to-staging", methods=["POST"])
+    def move_to_staging(movie_id):
+        conn = db.get_db()
+        try:
+            incoming_stage.move_to_staging(conn, movie_id)
+        except RuntimeError:
+            pass
+        return redirect(url_for("incoming"))
 
     @app.route("/")
     def intake():

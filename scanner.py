@@ -49,6 +49,39 @@ def _find_first_video_suffix(folder: Path):
     return None
 
 
+def scan_folder_entries(folder, skip_names=frozenset()):
+    """Discover loose video files, BDMV packages, and video-containing
+    subfolders directly inside `folder` (one level, not recursive)."""
+    items = []
+    for entry in sorted(folder.iterdir()):
+        if entry.name in skip_names:
+            continue
+        if entry.is_file():
+            suffix = entry.suffix.lower()
+            if suffix in VIDEO_EXTENSIONS:
+                items.append({
+                    "original_path": str(entry),
+                    "source_type": suffix.lstrip("."),
+                    "raw_name": entry.stem,
+                })
+        elif entry.is_dir():
+            if (entry / "BDMV").is_dir():
+                items.append({
+                    "original_path": str(entry),
+                    "source_type": "bdmv",
+                    "raw_name": entry.name,
+                })
+                continue
+            suffix = _find_first_video_suffix(entry)
+            if suffix:
+                items.append({
+                    "original_path": str(entry),
+                    "source_type": suffix.lstrip("."),
+                    "raw_name": entry.name,
+                })
+    return items
+
+
 def discover_items(root=None, folders=None):
     root = Path(root if root is not None else config.TORRENTS_ROOT)
     folders = folders if folders is not None else config.INTAKE_FOLDERS
@@ -58,30 +91,7 @@ def discover_items(root=None, folders=None):
         folder = root / folder_name
         if not folder.is_dir():
             continue
-        for entry in sorted(folder.iterdir()):
-            if entry.is_file():
-                suffix = entry.suffix.lower()
-                if suffix in VIDEO_EXTENSIONS:
-                    items.append({
-                        "original_path": str(entry),
-                        "source_type": suffix.lstrip("."),
-                        "raw_name": entry.stem,
-                    })
-            elif entry.is_dir():
-                if (entry / "BDMV").is_dir():
-                    items.append({
-                        "original_path": str(entry),
-                        "source_type": "bdmv",
-                        "raw_name": entry.name,
-                    })
-                    continue
-                suffix = _find_first_video_suffix(entry)
-                if suffix:
-                    items.append({
-                        "original_path": str(entry),
-                        "source_type": suffix.lstrip("."),
-                        "raw_name": entry.name,
-                    })
+        items.extend(scan_folder_entries(folder))
     return items
 
 

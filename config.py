@@ -9,6 +9,11 @@ TMDB_API_KEY = os.getenv("TMDB_API_KEY")
 TORRENTS_ROOT = "/home/dl/torrents/staging"
 INTAKE_FOLDERS = ["1080p", "4K", "Blurays", "Foreign"]
 
+# Raw, unsorted incoming torrents land here - the Incoming stage matches them
+# against TMDb and sorts them into TORRENTS_ROOT's category folders. TV/ is
+# never touched.
+TORRENTS_ROOT_INCOMING = "/home/dl/torrents/completed"
+
 ENCODES = os.environ.get("ENCODES")
 ENCODES4K = os.environ.get("ENCODES4K")
 
