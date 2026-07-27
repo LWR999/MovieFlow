@@ -94,3 +94,37 @@ main {
     text-align: center;
     color: var(--muted);
 }
+
+.intake-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.intake-table th,
+.intake-table td {
+    text-align: left;
+    padding: 0.6rem 0.75rem;
+    border-bottom: 1px solid var(--border);
+}
+
+.intake-table th {
+    color: var(--muted);
+    font-weight: 600;
+    font-size: 0.85rem;
+}
+
+.badge {
+    display: inline-block;
+    padding: 0.15rem 0.55rem;
+    border-radius: 999px;
+    background: var(--border);
+    color: var(--fg);
+    font-size: 0.75rem;
+    margin-left: 0.4rem;
+}
+
+.badge-muted {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+}

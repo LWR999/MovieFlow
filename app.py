@@ -2,6 +2,7 @@ from flask import Flask, render_template
 
 import config
 import db
+import scanner
 
 
 def create_app():
@@ -12,7 +13,12 @@ def create_app():
 
     @app.route("/")
     def intake():
-        return render_template("intake.html")
+        conn = db.get_db()
+        scanner.sync_discovered(conn)
+        movies = conn.execute(
+            "SELECT * FROM movies WHERE status = 'discovered' ORDER BY created_at DESC"
+        ).fetchall()
+        return render_template("intake.html", movies=movies)
 
     @app.route("/preprocessing")
     def preprocessing():
