@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}BDMV Playlists — MKV Manager{% endblock %}
+{% block content %}
+    <h1>Choose BDMV playlist</h1>
+    <p class="muted">{{ movie.original_path }}</p>
+
+    {% if playlists %}
+    <form method="post" action="{{ url_for('confirm_bdmv_playlist', movie_id=movie.id) }}">
+        <table class="intake-table">
+            <thead>
+                <tr>
+                    <th></th>
+                    <th>Playlist</th>
+                    <th>Duration</th>
+                    <th>Estimated size</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for pl in playlists %}
+                <tr>
+                    <td><input type="radio" name="playlist" value="{{ pl.filename }}" {% if loop.first %}checked{% endif %}></td>
+                    <td>{{ pl.filename }}</td>
+                    <td>{{ pl.duration_display }}</td>
+                    <td>{{ pl.size_display }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <p><button type="submit">Confirm and remux</button></p>
+    </form>
+    {% else %}
+    <p class="muted">No playlists found under BDMV/PLAYLIST.</p>
+    {% endif %}
+
+    <p><a href="{{ url_for('intake') }}">&larr; Back to Intake</a></p>
+{% endblock %}

@@ -1,7 +1,7 @@
-import sqlite3
 import threading
 
 import config
+import db
 
 _SEMAPHORES = {
     "preprocess": threading.Semaphore(config.MAX_CONCURRENT_PREPROCESS_JOBS),
@@ -16,13 +16,6 @@ class JobAlreadyRunning(Exception):
     pass
 
 
-def _connect():
-    conn = sqlite3.connect(config.DB_PATH)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA busy_timeout = 5000")
-    return conn
-
-
 def submit_job(movie_id, job_type, target, *args, **kwargs):
     """Queue a background job for a movie and return its job id.
 
@@ -31,7 +24,7 @@ def submit_job(movie_id, job_type, target, *args, **kwargs):
     concurrently, capped per job_type by the MAX_CONCURRENT_*_JOBS config.
     """
     with _SUBMIT_LOCK:
-        conn = _connect()
+        conn = db.connect()
         try:
             existing = conn.execute(
                 "SELECT id FROM jobs WHERE movie_id = ? AND status IN ('queued', 'running')",
@@ -63,7 +56,7 @@ def _run(job_id, movie_id, job_type, target, args, kwargs):
     if semaphore:
         semaphore.acquire()
 
-    conn = _connect()
+    conn = db.connect()
     try:
         conn.execute(
             "UPDATE jobs SET status = 'running', started_at = datetime('now') WHERE id = ?",

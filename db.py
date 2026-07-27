@@ -6,12 +6,17 @@ from flask import current_app, g
 import config
 
 
+def connect():
+    conn = sqlite3.connect(config.DB_PATH)
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA foreign_keys = ON")
+    conn.execute("PRAGMA busy_timeout = 5000")
+    return conn
+
+
 def get_db():
     if "db" not in g:
-        g.db = sqlite3.connect(config.DB_PATH)
-        g.db.row_factory = sqlite3.Row
-        g.db.execute("PRAGMA foreign_keys = ON")
-        g.db.execute("PRAGMA busy_timeout = 5000")
+        g.db = connect()
     return g.db
 
 

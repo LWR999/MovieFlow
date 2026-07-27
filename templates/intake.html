@@ -13,6 +13,7 @@
                 <th>HDR</th>
                 <th>Audio tracks</th>
                 <th>Foreign</th>
+                <th></th>
             </tr>
         </thead>
         <tbody>
@@ -47,6 +48,13 @@
                 <td>
                     <input type="checkbox" class="foreign-checkbox" data-movie-id="{{ m.id }}"
                            {% if m.is_foreign %}checked{% endif %}>
+                </td>
+                <td>
+                    {% if m.tmdb_id %}
+                    <form method="post" action="{{ url_for('trigger_preprocess', movie_id=m.id) }}">
+                        <button type="submit">Pre-process</button>
+                    </form>
+                    {% endif %}
                 </td>
             </tr>
             {% endfor %}

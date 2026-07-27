@@ -4,6 +4,7 @@ import config
 import db
 import jobs
 import naming
+import preprocess
 import scanner
 import tmdb
 
@@ -104,6 +105,54 @@ def create_app():
         conn.commit()
         return ("", 204)
 
+    @app.route("/movies/<int:movie_id>/preprocess", methods=["POST"])
+    def trigger_preprocess(movie_id):
+        conn = db.get_db()
+        movie = conn.execute("SELECT * FROM movies WHERE id = ?", (movie_id,)).fetchone()
+        if movie is None:
+            abort(404)
+        if not movie["tmdb_id"]:
+            abort(400, "movie must be TMDb-matched before pre-processing")
+
+        if movie["source_type"] == "bdmv":
+            return redirect(url_for("bdmv_playlists", movie_id=movie_id))
+
+        try:
+            jobs.submit_job(movie_id, "preprocess", preprocess.preprocess_mp4)
+        except jobs.JobAlreadyRunning:
+            pass
+        return redirect(url_for("preprocessing"))
+
+    @app.route("/movies/<int:movie_id>/preprocess/bdmv")
+    def bdmv_playlists(movie_id):
+        conn = db.get_db()
+        movie = conn.execute("SELECT * FROM movies WHERE id = ?", (movie_id,)).fetchone()
+        if movie is None:
+            abort(404)
+        if movie["source_type"] != "bdmv":
+            abort(400, "movie is not a BDMV package")
+
+        playlists = preprocess.list_bdmv_playlists(movie["original_path"])
+        for pl in playlists:
+            pl["duration_display"] = preprocess.format_duration(pl["duration_seconds"])
+            pl["size_display"] = preprocess.format_size(pl["estimated_bytes"])
+
+        return render_template("bdmv_playlists.html", movie=movie, playlists=playlists)
+
+    @app.route("/movies/<int:movie_id>/preprocess/bdmv/confirm", methods=["POST"])
+    def confirm_bdmv_playlist(movie_id):
+        conn = db.get_db()
+        movie = conn.execute("SELECT * FROM movies WHERE id = ?", (movie_id,)).fetchone()
+        if movie is None:
+            abort(404)
+
+        playlist_filename = request.form["playlist"]
+        try:
+            jobs.submit_job(movie_id, "preprocess", preprocess.preprocess_bdmv, playlist_filename)
+        except jobs.JobAlreadyRunning:
+            pass
+        return redirect(url_for("preprocessing"))
+
     @app.route("/api/jobs/<int:job_id>")
     def get_job(job_id):
         conn = db.get_db()
@@ -124,7 +173,16 @@ def create_app():
 
     @app.route("/preprocessing")
     def preprocessing():
-        return render_template("preprocessing.html")
+        conn = db.get_db()
+        job_rows = conn.execute(
+            """
+            SELECT jobs.*, movies.title, movies.clean_title, movies.year
+            FROM jobs JOIN movies ON jobs.movie_id = movies.id
+            WHERE jobs.job_type = 'preprocess' AND jobs.status IN ('queued', 'running', 'error')
+            ORDER BY jobs.id DESC
+            """
+        ).fetchall()
+        return render_template("preprocessing.html", jobs=job_rows)
 
     @app.route("/processing")
     def processing():

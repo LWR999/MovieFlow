@@ -2,5 +2,33 @@
 {% block title %}Pre-processing — MKV Manager{% endblock %}
 {% block content %}
     <h1>Pre-processing</h1>
+    {% if jobs %}
+    <table class="intake-table">
+        <thead>
+            <tr>
+                <th>Movie</th>
+                <th>Status</th>
+                <th>Progress</th>
+                <th>Message</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for j in jobs %}
+            <tr data-job-id="{{ j.id }}">
+                <td>{{ j.clean_title or j.title }}{% if j.year %} ({{ j.year }}){% endif %}</td>
+                <td class="job-status">{{ j.status }}</td>
+                <td>
+                    <div class="progress-bar"><div class="progress-bar-fill" style="width: {{ j.progress_pct }}%"></div></div>
+                </td>
+                <td class="job-message">{{ j.message or "" }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
     <div class="empty-state">No pre-processing jobs in flight.</div>
+    {% endif %}
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='jobs_poll.js') }}"></script>
 {% endblock %}
