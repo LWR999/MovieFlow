@@ -66,14 +66,15 @@ def mkvmerge_tracks(path):
 def resolution_label(width, height):
     if not height:
         return None
-    if height >= 2000:
+    # Vertical resolution only: anything over 1080 is 4K, regardless of
+    # width/aspect ratio (a cinematic-crop UHD master, e.g. 3840x1600, is
+    # still 4K even though its height falls well short of 2160).
+    if height > 1080:
         return "2160p"
-    if height >= 1000:
+    if height > 720:
         return "1080p"
-    if height >= 700:
+    if height > 480:
         return "720p"
-    if height >= 470:
-        return "480p"
     return f"{width}x{height}"
 
 

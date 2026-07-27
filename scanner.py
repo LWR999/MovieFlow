@@ -19,7 +19,7 @@ QUALITY_RE = re.compile(
     r"\b(?:" + "|".join(re.escape(k) for k in sorted(QUALITY_KEYWORDS, key=len, reverse=True)) + r")\b",
     re.IGNORECASE,
 )
-YEAR_RE = re.compile(r"(?<!\d)(19\d{2}|20\d{2})(?!\d)")
+YEAR_RE = re.compile(r"\(?(?<!\d)(19\d{2}|20\d{2})(?!\d)\)?")
 
 
 def parse_title_year(raw_name):
