@@ -54,7 +54,7 @@ def _ffprobe(path):
     return json.loads(result.stdout)
 
 
-def _mkvmerge_tracks(path):
+def mkvmerge_tracks(path):
     try:
         cmd = ["mkvmerge", "-J", str(path)]
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=TIMEOUT, check=True)
@@ -155,7 +155,7 @@ def inspect_media(original_path, source_type):
             result["hdr_flavor"] = hdr_label(video_stream)
 
         if media_path.suffix.lower() == ".mkv":
-            tracks = _mkvmerge_tracks(media_path)
+            tracks = mkvmerge_tracks(media_path)
             audio_list = format_mkvmerge_audio(tracks) if tracks is not None else format_ffprobe_audio(streams)
         else:
             audio_list = format_ffprobe_audio(streams)

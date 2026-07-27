@@ -240,3 +240,24 @@ main {
     background: var(--accent);
     transition: width 0.3s ease;
 }
+
+.bulk-actions {
+    display: flex;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+}
+
+.bulk-actions button {
+    border: 1px solid var(--border);
+    background: var(--card-bg);
+    color: var(--fg);
+    border-radius: 6px;
+    padding: 0.4rem 0.8rem;
+    cursor: pointer;
+}
+
+.bulk-actions button[type="submit"] {
+    background: var(--accent);
+    color: #fff;
+    border-color: var(--accent);
+}

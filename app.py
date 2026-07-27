@@ -5,6 +5,7 @@ import db
 import jobs
 import naming
 import preprocess
+import processing as audio_processing
 import scanner
 import tmdb
 
@@ -186,7 +187,29 @@ def create_app():
 
     @app.route("/processing")
     def processing():
-        return render_template("processing.html")
+        conn = db.get_db()
+        movies = conn.execute(
+            "SELECT * FROM movies WHERE status = 'preprocessed' ORDER BY created_at DESC"
+        ).fetchall()
+        job_rows = conn.execute(
+            """
+            SELECT jobs.*, movies.clean_title, movies.year
+            FROM jobs JOIN movies ON jobs.movie_id = movies.id
+            WHERE jobs.job_type = 'process' AND jobs.status IN ('queued', 'running', 'error')
+            ORDER BY jobs.id DESC
+            """
+        ).fetchall()
+        return render_template("processing.html", movies=movies, jobs=job_rows)
+
+    @app.route("/movies/process", methods=["POST"])
+    def process_selected():
+        movie_ids = request.form.getlist("movie_id", type=int)
+        for movie_id in movie_ids:
+            try:
+                jobs.submit_job(movie_id, "process", audio_processing.process_audio)
+            except jobs.JobAlreadyRunning:
+                pass
+        return redirect(url_for("processing"))
 
     @app.route("/library")
     def library():
