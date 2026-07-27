@@ -1,7 +1,8 @@
-from flask import Flask, abort, redirect, render_template, request, url_for
+from flask import Flask, abort, jsonify, redirect, render_template, request, url_for
 
 import config
 import db
+import jobs
 import naming
 import scanner
 import tmdb
@@ -102,6 +103,24 @@ def create_app():
         )
         conn.commit()
         return ("", 204)
+
+    @app.route("/api/jobs/<int:job_id>")
+    def get_job(job_id):
+        conn = db.get_db()
+        job = jobs.get_job(conn, job_id)
+        if job is None:
+            abort(404)
+        return jsonify(dict(job))
+
+    @app.route("/api/jobs")
+    def list_jobs():
+        conn = db.get_db()
+        movie_id = request.args.get("movie_id", type=int)
+        if movie_id is not None:
+            rows = jobs.get_jobs_for_movie(conn, movie_id)
+        else:
+            rows = conn.execute("SELECT * FROM jobs ORDER BY id DESC").fetchall()
+        return jsonify([dict(r) for r in rows])
 
     @app.route("/preprocessing")
     def preprocessing():
