@@ -128,3 +128,101 @@ main {
     border: 1px solid var(--border);
     color: var(--muted);
 }
+
+.badge-link {
+    text-decoration: none;
+}
+
+.muted {
+    color: var(--muted);
+}
+
+.error-box {
+    border: 1px solid var(--accent);
+    background: var(--card-bg);
+    color: var(--fg);
+    border-radius: 8px;
+    padding: 0.75rem 1rem;
+    margin-bottom: 1rem;
+}
+
+.match-search-form {
+    display: flex;
+    align-items: flex-end;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.match-search-form label {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    font-size: 0.85rem;
+    color: var(--muted);
+}
+
+.match-search-form input {
+    padding: 0.4rem 0.5rem;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--card-bg);
+    color: var(--fg);
+}
+
+.match-search-form button,
+.candidate-card button {
+    border: 1px solid var(--border);
+    background: var(--accent);
+    color: #fff;
+    border-radius: 6px;
+    padding: 0.45rem 0.9rem;
+    cursor: pointer;
+}
+
+.candidate-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 1rem;
+}
+
+.candidate-card {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.75rem;
+    background: var(--card-bg);
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+
+.candidate-card img {
+    width: 100%;
+    border-radius: 6px;
+}
+
+.poster-placeholder {
+    width: 100%;
+    aspect-ratio: 2 / 3;
+    border: 1px dashed var(--border);
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--muted);
+    font-size: 0.8rem;
+}
+
+.candidate-title {
+    font-weight: 600;
+}
+
+.candidate-rating {
+    color: var(--muted);
+    font-size: 0.85rem;
+}
+
+.poster-thumb {
+    width: 40px;
+    border-radius: 4px;
+    display: block;
+}

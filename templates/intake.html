@@ -6,7 +6,8 @@
     <table class="intake-table">
         <thead>
             <tr>
-                <th>Title / Year</th>
+                <th>Poster</th>
+                <th>Proposed name</th>
                 <th>Type</th>
                 <th>Resolution</th>
                 <th>HDR</th>
@@ -18,8 +19,18 @@
             {% for m in movies %}
             <tr>
                 <td>
-                    {{ m.title or "(untitled)" }}{% if m.year %} ({{ m.year }}){% endif %}
-                    {% if not m.tmdb_id %}<span class="badge badge-muted">needs match</span>{% endif %}
+                    {% if m.poster_path %}
+                    <img class="poster-thumb" src="https://image.tmdb.org/t/p/w200{{ m.poster_path }}" alt="">
+                    {% endif %}
+                </td>
+                <td>
+                    {% if m.tmdb_id %}
+                        {{ m.clean_title }}{% if m.year %} ({{ m.year }}){% endif %}
+                        <a class="badge badge-muted badge-link" href="{{ url_for('match', movie_id=m.id) }}">re-match</a>
+                    {% else %}
+                        {{ m.title or "(untitled)" }}{% if m.year %} ({{ m.year }}){% endif %}
+                        <a class="badge badge-link" href="{{ url_for('match', movie_id=m.id) }}">needs match</a>
+                    {% endif %}
                 </td>
                 <td>
                     {% if m.source_type == 'bdmv' %}
@@ -33,7 +44,10 @@
                 <td>{{ m.resolution or "unknown" }}</td>
                 <td>{{ m.hdr_flavor or "unknown" }}</td>
                 <td>—</td>
-                <td><input type="checkbox" disabled {% if m.is_foreign %}checked{% endif %}></td>
+                <td>
+                    <input type="checkbox" class="foreign-checkbox" data-movie-id="{{ m.id }}"
+                           {% if m.is_foreign %}checked{% endif %}>
+                </td>
             </tr>
             {% endfor %}
         </tbody>
@@ -41,4 +55,7 @@
     {% else %}
     <div class="empty-state">No movies discovered yet.</div>
     {% endif %}
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='intake.js') }}"></script>
 {% endblock %}
