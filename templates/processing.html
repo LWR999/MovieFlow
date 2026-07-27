@@ -44,6 +44,7 @@
                     <th>Movie</th>
                     <th>Resolution</th>
                     <th>Foreign</th>
+                    <th></th>
                 </tr>
             </thead>
             <tbody>
@@ -53,11 +54,16 @@
                     <td>{{ m.clean_title }}{% if m.year %} ({{ m.year }}){% endif %}</td>
                     <td><span class="badge">{{ m.resolution or "unknown" }}</span></td>
                     <td>{% if m.is_foreign %}<span class="badge">Foreign</span>{% endif %}</td>
+                    <td><button type="submit" form="delete-form-{{ m.id }}" class="delete-btn">Delete</button></td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
     </form>
+    {% for m in movies %}
+    <form id="delete-form-{{ m.id }}" method="post" action="{{ url_for('delete_movie', movie_id=m.id) }}"
+          data-confirm="Delete {{ m.clean_title }}? This cannot be undone."></form>
+    {% endfor %}
     {% elif not jobs %}
     <div class="empty-state">No movies ready for audio-track processing.</div>
     {% endif %}

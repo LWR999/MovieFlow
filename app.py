@@ -1,3 +1,6 @@
+import shutil
+from pathlib import Path
+
 from flask import Flask, abort, jsonify, redirect, render_template, request, url_for
 
 import config
@@ -106,6 +109,34 @@ def create_app():
         )
         conn.commit()
         return ("", 204)
+
+    @app.route("/movies/<int:movie_id>/delete", methods=["POST"])
+    def delete_movie(movie_id):
+        conn = db.get_db()
+        movie = conn.execute("SELECT * FROM movies WHERE id = ?", (movie_id,)).fetchone()
+        if movie is None:
+            abort(404)
+
+        active_job = conn.execute(
+            "SELECT id FROM jobs WHERE movie_id = ? AND status IN ('queued', 'running')",
+            (movie_id,),
+        ).fetchone()
+        if active_job:
+            abort(409, "cannot delete while a job is in progress for this movie")
+
+        path_str = movie["final_path"] or movie["original_path"]
+        path = Path(path_str)
+        if path.exists():
+            if path.is_dir():
+                shutil.rmtree(path)
+            else:
+                path.unlink()
+
+        conn.execute("DELETE FROM jobs WHERE movie_id = ?", (movie_id,))
+        conn.execute("DELETE FROM movies WHERE id = ?", (movie_id,))
+        conn.commit()
+
+        return redirect(request.referrer or url_for("intake"))
 
     @app.route("/movies/<int:movie_id>/preprocess", methods=["POST"])
     def trigger_preprocess(movie_id):

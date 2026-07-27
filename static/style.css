@@ -261,3 +261,12 @@ main {
     color: #fff;
     border-color: var(--accent);
 }
+
+.delete-btn {
+    border: 1px solid #c0392b;
+    background: transparent;
+    color: #c0392b;
+    border-radius: 6px;
+    padding: 0.35rem 0.7rem;
+    cursor: pointer;
+}
