@@ -229,8 +229,15 @@ def preprocess_bdmv(movie_id, progress, playlist_filename):
 
 
 def _run_ffmpeg_remux(source, dest, progress, total_duration):
+    # -map 0 (all streams) breaks on real MP4 releases: Matroska can't hold
+    # arbitrary "Data" streams (e.g. timed-text metadata tracks) at all, and
+    # can't stream-copy mov_text subtitles (MP4/QuickTime-only codec) - only
+    # audio/video/subtitle streams are mapped, and subtitles are transcoded
+    # to SRT (lossless, since mov_text is plain text) rather than copied.
     cmd = [
-        "ffmpeg", "-y", "-i", str(source), "-c", "copy", "-map", "0",
+        "ffmpeg", "-y", "-i", str(source),
+        "-map", "0:v", "-map", "0:a", "-map", "0:s?",
+        "-c:v", "copy", "-c:a", "copy", "-c:s", "srt",
         "-progress", "pipe:1", "-nostats", str(dest),
     ]
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
