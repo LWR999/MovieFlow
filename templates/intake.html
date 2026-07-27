@@ -22,7 +22,7 @@
             <tr>
                 <td>
                     {% if m.poster_path %}
-                    <img class="poster-thumb" src="https://image.tmdb.org/t/p/w200{{ m.poster_path }}" alt="">
+                    <img class="poster-thumb" src="{{ url_for('poster', poster_path=m.poster_path.lstrip('/')) }}" alt="">
                     {% endif %}
                 </td>
                 <td>
@@ -33,6 +33,7 @@
                         {{ m.title or "(untitled)" }}{% if m.year %} ({{ m.year }}){% endif %}
                         <a class="badge badge-link" href="{{ url_for('match', movie_id=m.id) }}">needs match</a>
                     {% endif %}
+                    {% if m.collision %}<span class="badge badge-danger">⚠ destination already exists</span>{% endif %}
                 </td>
                 <td>
                     {% if m.source_type == 'bdmv' %}

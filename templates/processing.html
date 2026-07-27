@@ -12,6 +12,7 @@
                 <th>Status</th>
                 <th>Progress</th>
                 <th>Message</th>
+                <th></th>
             </tr>
         </thead>
         <tbody>
@@ -23,6 +24,17 @@
                     <div class="progress-bar"><div class="progress-bar-fill" style="width: {{ j.progress_pct }}%"></div></div>
                 </td>
                 <td class="job-message">{{ j.message or "" }}</td>
+                <td>
+                    {% if j.status == 'error' %}
+                    <form method="post" action="{{ url_for('process_selected') }}" class="inline-form">
+                        <input type="hidden" name="movie_id" value="{{ j.movie_id }}">
+                        <button type="submit">Retry</button>
+                    </form>
+                    <form method="post" action="{{ url_for('dismiss_job', job_id=j.id) }}" class="inline-form">
+                        <button type="submit">Dismiss</button>
+                    </form>
+                    {% endif %}
+                </td>
             </tr>
             {% endfor %}
         </tbody>
@@ -51,7 +63,10 @@
                 {% for m in movies %}
                 <tr>
                     <td><input type="checkbox" name="movie_id" value="{{ m.id }}" class="row-select"></td>
-                    <td>{{ m.clean_title }}{% if m.year %} ({{ m.year }}){% endif %}</td>
+                    <td>
+                        {{ m.clean_title }}{% if m.year %} ({{ m.year }}){% endif %}
+                        {% if m.collision %}<span class="badge badge-danger">⚠ destination already exists</span>{% endif %}
+                    </td>
                     <td><span class="badge">{{ m.resolution or "unknown" }}</span></td>
                     <td>{% if m.is_foreign %}<span class="badge">Foreign</span>{% endif %}</td>
                     <td><button type="submit" form="delete-form-{{ m.id }}" class="delete-btn">Delete</button></td>

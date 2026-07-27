@@ -129,6 +129,12 @@ main {
     color: var(--muted);
 }
 
+.badge-danger {
+    background: transparent;
+    border: 1px solid #c0392b;
+    color: #c0392b;
+}
+
 .badge-link {
     text-decoration: none;
 }
@@ -269,4 +275,9 @@ main {
     border-radius: 6px;
     padding: 0.35rem 0.7rem;
     cursor: pointer;
+}
+
+.inline-form {
+    display: inline-block;
+    margin-right: 0.4rem;
 }

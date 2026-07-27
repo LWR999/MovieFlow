@@ -1,7 +1,9 @@
+import os
 import shutil
 from pathlib import Path
 
-from flask import Flask, abort, jsonify, redirect, render_template, request, url_for
+import requests
+from flask import Flask, abort, jsonify, redirect, render_template, request, send_file, url_for
 
 import config
 import db
@@ -13,12 +15,30 @@ import processing as audio_processing
 import scanner
 import tmdb
 
+TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p/w200"
+
 
 def create_app():
     app = Flask(__name__)
     app.config["DEBUG"] = config.FLASK_DEBUG
 
     db.init_app(app)
+
+    @app.route("/posters/<path:poster_path>")
+    def poster(poster_path):
+        filename = os.path.basename(poster_path)
+        cache_path = Path(config.POSTER_CACHE_DIR) / filename
+
+        if not cache_path.exists():
+            try:
+                resp = requests.get(f"{TMDB_IMAGE_BASE}/{filename}", timeout=10)
+                resp.raise_for_status()
+            except requests.RequestException:
+                abort(502, "could not fetch poster")
+            cache_path.parent.mkdir(parents=True, exist_ok=True)
+            cache_path.write_bytes(resp.content)
+
+        return send_file(cache_path, mimetype="image/jpeg")
 
     @app.route("/")
     def intake():
@@ -185,6 +205,18 @@ def create_app():
         except jobs.JobAlreadyRunning:
             pass
         return redirect(url_for("preprocessing"))
+
+    @app.route("/jobs/<int:job_id>/dismiss", methods=["POST"])
+    def dismiss_job(job_id):
+        conn = db.get_db()
+        job = conn.execute("SELECT * FROM jobs WHERE id = ?", (job_id,)).fetchone()
+        if job is None:
+            abort(404)
+        if job["status"] not in ("error", "done"):
+            abort(409, "cannot dismiss a job that is still queued or running")
+        conn.execute("DELETE FROM jobs WHERE id = ?", (job_id,))
+        conn.commit()
+        return redirect(request.referrer or url_for("intake"))
 
     @app.route("/api/jobs/<int:job_id>")
     def get_job(job_id):

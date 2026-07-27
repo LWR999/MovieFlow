@@ -14,6 +14,7 @@ ENCODES4K = os.environ.get("ENCODES4K")
 
 DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "mkv_manager.db")
 SCHEMA_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "schema.sql")
+POSTER_CACHE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "poster_cache")
 
 FLASK_DEBUG = os.environ.get("FLASK_DEBUG", "0") == "1"
 PORT = 5010

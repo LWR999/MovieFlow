@@ -3,4 +3,5 @@ __pycache__/
 *.pyc
 .env
 mkv_manager.db
+poster_cache/
 .claude/settings.local.json

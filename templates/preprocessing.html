@@ -10,6 +10,7 @@
                 <th>Status</th>
                 <th>Progress</th>
                 <th>Message</th>
+                <th></th>
             </tr>
         </thead>
         <tbody>
@@ -21,6 +22,16 @@
                     <div class="progress-bar"><div class="progress-bar-fill" style="width: {{ j.progress_pct }}%"></div></div>
                 </td>
                 <td class="job-message">{{ j.message or "" }}</td>
+                <td>
+                    {% if j.status == 'error' %}
+                    <form method="post" action="{{ url_for('trigger_preprocess', movie_id=j.movie_id) }}" class="inline-form">
+                        <button type="submit">Retry</button>
+                    </form>
+                    <form method="post" action="{{ url_for('dismiss_job', job_id=j.id) }}" class="inline-form">
+                        <button type="submit">Dismiss</button>
+                    </form>
+                    {% endif %}
+                </td>
             </tr>
             {% endfor %}
         </tbody>
