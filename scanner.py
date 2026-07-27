@@ -10,7 +10,7 @@ VIDEO_EXTENSIONS = {".mkv", ".mp4"}
 QUALITY_KEYWORDS = [
     "2160p", "1080p", "720p", "480p",
     "WEBRip", "WEB-DL", "WEBDL", "WEB",
-    "BluRay", "Blu-Ray",
+    "BluRay", "Blu-Ray", "BRRip", "BDRip", "DVDRip", "HDRip", "CAMRip",
     "HDTV", "REMUX",
     "x264", "x265", "h264", "h265", "HEVC", "AVC",
     "AAC", "DTS", "TrueHD", "Atmos", "DDP", "DD5.1",
@@ -96,7 +96,15 @@ def discover_items(root=None, folders=None):
 
 
 def sync_discovered(db):
+    # Dedup against both original_path and final_path: once a movie has been
+    # pre-processed, its on-disk location is tracked via final_path while
+    # original_path goes stale (the pre-processing-time raw file/folder no
+    # longer exists) - checking original_path alone would make the scanner
+    # "rediscover" every already-processed movie as a new phantom row.
     existing = {row["original_path"] for row in db.execute("SELECT original_path FROM movies")}
+    existing |= {
+        row["final_path"] for row in db.execute("SELECT final_path FROM movies WHERE final_path IS NOT NULL")
+    }
     inserted = 0
     for item in discover_items():
         if item["original_path"] in existing:
@@ -105,8 +113,9 @@ def sync_discovered(db):
         inspection = probe.inspect_media(item["original_path"], item["source_type"])
         db.execute(
             """
-            INSERT INTO movies (original_path, source_type, title, year, resolution, hdr_flavor, audio_summary)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO movies (original_path, source_type, title, year, resolution, hdr_flavor,
+                audio_summary, status)
+            VALUES (?, ?, ?, ?, ?, ?, ?, 'discovered')
             """,
             (
                 item["original_path"], item["source_type"], title, year,
