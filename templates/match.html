@@ -11,6 +11,7 @@
     <form method="get" action="{{ url_for('match', movie_id=movie.id) }}" class="match-search-form">
         <label>Title <input type="text" name="title" value="{{ query_title }}"></label>
         <label>Year <input type="number" name="year" value="{{ query_year }}" min="1900" max="2099"></label>
+        <input type="hidden" name="return_to" value="{{ return_to }}">
         <button type="submit">Search</button>
     </form>
 
@@ -30,6 +31,7 @@
             <input type="hidden" name="year" value="{{ c.year or '' }}">
             <input type="hidden" name="poster_path" value="{{ c.poster_path or '' }}">
             <input type="hidden" name="original_language" value="{{ c.original_language or '' }}">
+            <input type="hidden" name="return_to" value="{{ return_to }}">
             <button type="submit">Select</button>
         </form>
         {% endfor %}
@@ -38,5 +40,5 @@
     <p class="muted">No candidates found — edit the title/year above and re-search.</p>
     {% endif %}
 
-    <p><a href="{{ url_for('intake') }}">&larr; Back to Intake</a></p>
+    <p><a href="{{ return_to }}">&larr; Back</a></p>
 {% endblock %}

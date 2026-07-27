@@ -2,9 +2,11 @@ import shutil
 from pathlib import Path
 
 import config
+import naming
 import preprocess
 import probe
 import scanner
+import tmdb
 
 
 def discover_incoming_items(root=None):
@@ -12,6 +14,38 @@ def discover_incoming_items(root=None):
     if not root.is_dir():
         return []
     return scanner.scan_folder_entries(root, skip_names={"TV"})
+
+
+def _auto_match(title, year):
+    """Best-effort auto-match against TMDb's top search result. Returns a
+    dict of match fields to apply, or None if no candidate was found or the
+    search failed - the item just falls back to the manual needs-match flow."""
+    if not title or not title.strip():
+        return None
+    try:
+        candidates = tmdb.search_movies(title, year)
+    except tmdb.TMDbError:
+        return None
+    if not candidates:
+        return None
+
+    top = candidates[0]
+    try:
+        external_ids = tmdb.get_external_ids(top["tmdb_id"])
+    except tmdb.TMDbError:
+        return None
+
+    is_foreign = 1 if top["original_language"] and top["original_language"] != "en" else 0
+    return {
+        "tmdb_id": top["tmdb_id"],
+        "imdb_id": external_ids["imdb_id"],
+        "title": top["title"],
+        "year": top["year"],
+        "clean_title": naming.clean_title(top["title"]),
+        "original_language": top["original_language"],
+        "poster_path": top["poster_path"],
+        "is_foreign": is_foreign,
+    }
 
 
 def sync_incoming(conn):
@@ -22,7 +56,8 @@ def sync_incoming(conn):
             continue
         title, year = scanner.parse_title_year(item["raw_name"])
         inspection = probe.inspect_media(item["original_path"], item["source_type"])
-        conn.execute(
+
+        cur = conn.execute(
             """
             INSERT INTO movies (original_path, source_type, title, year, resolution, hdr_flavor,
                 audio_summary, status)
@@ -33,6 +68,24 @@ def sync_incoming(conn):
                 inspection["resolution"], inspection["hdr_flavor"], inspection["audio_summary"],
             ),
         )
+        movie_id = cur.lastrowid
+
+        match = _auto_match(title, year)
+        if match:
+            conn.execute(
+                """
+                UPDATE movies
+                SET tmdb_id = ?, imdb_id = ?, title = ?, year = ?, clean_title = ?,
+                    original_language = ?, poster_path = ?, is_foreign = ?, updated_at = datetime('now')
+                WHERE id = ?
+                """,
+                (
+                    match["tmdb_id"], match["imdb_id"], match["title"], match["year"],
+                    match["clean_title"], match["original_language"], match["poster_path"],
+                    match["is_foreign"], movie_id,
+                ),
+            )
+
         inserted += 1
     if inserted:
         conn.commit()

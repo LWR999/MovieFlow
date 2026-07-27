@@ -28,10 +28,10 @@
                 <td>
                     {% if m.tmdb_id %}
                         {{ m.clean_title }}{% if m.year %} ({{ m.year }}){% endif %}
-                        <a class="badge badge-muted badge-link" href="{{ url_for('match', movie_id=m.id) }}">re-match</a>
+                        <a class="badge badge-muted badge-link" href="{{ url_for('match', movie_id=m.id, return_to=url_for('intake')) }}">re-match</a>
                     {% else %}
                         {{ m.title or "(untitled)" }}{% if m.year %} ({{ m.year }}){% endif %}
-                        <a class="badge badge-link" href="{{ url_for('match', movie_id=m.id) }}">needs match</a>
+                        <a class="badge badge-link" href="{{ url_for('match', movie_id=m.id, return_to=url_for('intake')) }}">needs match</a>
                     {% endif %}
                     {% if m.collision %}<span class="badge badge-danger">⚠ destination already exists</span>{% endif %}
                 </td>

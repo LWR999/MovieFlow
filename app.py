@@ -89,6 +89,7 @@ def create_app():
 
         query_title = request.args.get("title", movie["title"] or "")
         query_year = request.args.get("year", movie["year"] or "")
+        return_to = request.args.get("return_to") or request.referrer or url_for("intake")
 
         candidates = []
         error = None
@@ -103,6 +104,7 @@ def create_app():
             movie=movie,
             query_title=query_title,
             query_year=query_year,
+            return_to=return_to,
             candidates=candidates,
             error=error,
         )
@@ -119,6 +121,7 @@ def create_app():
         year = request.form.get("year") or None
         poster_path = request.form.get("poster_path") or None
         original_language = request.form.get("original_language") or None
+        return_to = request.form.get("return_to") or url_for("intake")
 
         try:
             external_ids = tmdb.get_external_ids(tmdb_id)
@@ -128,6 +131,7 @@ def create_app():
                 movie=movie,
                 query_title=title,
                 query_year=year or "",
+                return_to=return_to,
                 candidates=[],
                 error=f"Could not confirm match: {e}",
             ), 502
@@ -148,7 +152,7 @@ def create_app():
             ),
         )
         conn.commit()
-        return redirect(url_for("intake"))
+        return redirect(return_to)
 
     @app.route("/movies/<int:movie_id>/foreign", methods=["POST"])
     def set_foreign(movie_id):

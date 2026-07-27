@@ -127,12 +127,16 @@ This is a best-effort first guess only. **The UI must let you edit title + year 
 
 1. Search `/search/movie?query=<title>&year=<year_if_present>`.
 2. If year is missing, search by title alone.
-3. **Never auto-accept.** Per your answer, every movie sits in a "needs confirmation" state
-   showing the top N (e.g. 5) TMDb candidates (poster thumbnail, title, year, TMDb rating) plus a
-   manual title/year input to re-search. User picks one (or edits and re-searches) to confirm.
-4. On confirm, store: `tmdb_id`, `imdb_id`, `title` (clean), `year`, `original_language`,
-   `poster_path` in the movie's SQLite record. This becomes the proposed filename shown on the
-   intake screen.
+3. **Auto-accept the top result at Incoming discovery time** (revised from the original "never
+   auto-accept" design - per your later instruction, matching should run automatically so you
+   only have to act on the exceptions). If TMDb returns no candidates, or the search/lookup
+   fails, the item just falls back to the manual "needs match" state as before. A "re-match" link
+   is always available (on both Incoming and Intake) to open the same TMDb candidate picker
+   (poster thumbnail, title, year, TMDb rating, top N e.g. 5) with a manual title/year input to
+   re-search, in case the auto-match picked the wrong film.
+4. On confirm (auto or manual), store: `tmdb_id`, `imdb_id`, `title` (clean), `year`,
+   `original_language`, `poster_path` in the movie's SQLite record. This becomes the proposed
+   filename shown on the Intake screen.
 5. Foreign-checkbox default = `original_language != 'en'`. User can override the checkbox at any
    time; overriding does **not** re-trigger a re-match, it only affects the audio-track-retention
    rule at the Processing stage.
@@ -150,12 +154,15 @@ On load, scan `/home/dl/torrents/completed/` (top-level only, not `TV/`) for:
 Anything found that isn't already a recorded row in SQLite (matched by original path) gets a new
 row created in `status = incoming`.
 
-For each item show the same title/year parsing, TMDb match picker, resolution/HDR/audio
-probing, type badge, and foreign checkbox as Intake used to show (see section 6b) - matching
-here is identical to how it always worked, just one stage earlier. Once matched, additionally
-show the **proposed destination category** (`Blurays` if BDMV, else `Foreign` if the foreign
-checkbox is set, else `4K`/`1080p` by resolution - same rule as section 1.1) and a **"Move to
-staging"** button. Clicking it moves the raw item (unchanged - no renaming, no remuxing yet)
+Title/year parsing runs immediately, followed by an automatic TMDb match attempt against the top
+search result (section 5) - most items arrive already matched, needing no action. Each item also
+gets resolution/HDR/audio probing, a type badge, and an editable foreign checkbox, same as Intake
+used to show (see section 6b). A "re-match" link is always available (whether auto-matched or
+not) to open the TMDb candidate picker and correct a wrong auto-match or match one TMDb couldn't
+find automatically; confirming from here returns you to Incoming, not Intake. Once matched,
+additionally show the **proposed destination category** (`Blurays` if BDMV, else `Foreign` if the
+foreign checkbox is set, else `4K`/`1080p` by resolution - same rule as section 1.1) and a **"Move
+to staging"** button. Clicking it moves the raw item (unchanged - no renaming, no remuxing yet)
 into `staging/<category>/`, blocking with the same "destination already exists" collision state
 as elsewhere if something with that name already exists there. On a successful move, `status`
 becomes `discovered` and the row disappears from Incoming, appearing on Intake instead.
