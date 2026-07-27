@@ -1,0 +1,6 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+mkv_manager.db
+.claude/settings.local.json

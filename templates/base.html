@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}MKV Manager{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script>
+        (function () {
+            var stored = localStorage.getItem("theme");
+            if (stored) {
+                document.documentElement.setAttribute("data-theme", stored);
+            }
+        })();
+    </script>
+</head>
+<body>
+    <nav>
+        <span class="brand">MKV Manager</span>
+        <a href="{{ url_for('intake') }}" class="{{ 'active' if request.endpoint == 'intake' }}">Intake</a>
+        <a href="{{ url_for('preprocessing') }}" class="{{ 'active' if request.endpoint == 'preprocessing' }}">Pre-processing</a>
+        <a href="{{ url_for('processing') }}" class="{{ 'active' if request.endpoint == 'processing' }}">Processing</a>
+        <a href="{{ url_for('library') }}" class="{{ 'active' if request.endpoint == 'library' }}">Library</a>
+        <button id="theme-toggle" type="button">☀ / ☾</button>
+    </nav>
+    <main>
+        {% block content %}{% endblock %}
+    </main>
+    <script src="{{ url_for('static', filename='theme.js') }}"></script>
+</body>
+</html>
