@@ -6,7 +6,7 @@ load_dotenv()
 
 TMDB_API_KEY = os.getenv("TMDB_API_KEY")
 
-TORRENTS_ROOT = "/home/dl/torrents/completed"
+TORRENTS_ROOT = "/home/dl/torrents/staging"
 INTAKE_FOLDERS = ["1080p", "4K", "Blurays", "Foreign"]
 
 ENCODES = os.environ.get("ENCODES")

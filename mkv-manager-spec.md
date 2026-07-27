@@ -6,14 +6,18 @@ This app runs on `downloadserver.local` as user `dl`, serving on **port 5010**. 
 movie download pipeline that goes:
 
 ```
-/home/dl/torrents/completed/{1080p,4K,Blurays,Foreign,TV}
+/home/dl/torrents/completed/           incoming torrents land here (unsorted), plus TV/ (out of scope)
+/home/dl/torrents/staging/{1080p,4K,Blurays,Foreign}
         │
         ▼  STAGE 1: Intake / Pre-processing
         ▼  STAGE 2: Processing (audio track cleanup)
         ▼  STAGE 3: Library (copy to final Plex library paths)
 ```
 
-`TV` is out of scope — never touch it.
+The app's intake scan root is `/home/dl/torrents/staging/`, not `completed/`.
+`completed/` is upstream of this app (raw torrent client output, sorted into
+`staging/`'s category folders outside the app) and is never scanned.
+`completed/TV/` is out of scope regardless — never touch it.
 
 Existing shell scripts exist for parts of this (MP4→MKV conversion via ffmpeg, possibly BDMV
 handling). The user will share these on request if Claude Code gets stuck reverse-engineering
@@ -130,7 +134,7 @@ This is a best-effort first guess only. **The UI must let you edit title + year 
 
 ## 6. Stage 1 — Intake / Discovery screen
 
-On load, scan `/home/dl/torrents/completed/{1080p,4K,Blurays,Foreign}` (not `TV`) for:
+On load, scan `/home/dl/torrents/staging/{1080p,4K,Blurays,Foreign}` for:
 - Top-level `.mkv` or `.mp4` files directly in these folders (not yet organized into a movie
   folder), and
 - Subfolders containing `.mkv`/`.mp4` files, or a `BDMV` package.
