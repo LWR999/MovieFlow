@@ -3,6 +3,7 @@ from flask import Flask, abort, jsonify, redirect, render_template, request, url
 import config
 import db
 import jobs
+import library as library_job
 import naming
 import preprocess
 import processing as audio_processing
@@ -213,7 +214,29 @@ def create_app():
 
     @app.route("/library")
     def library():
-        return render_template("library.html")
+        conn = db.get_db()
+        movies = conn.execute(
+            "SELECT * FROM movies WHERE status = 'processed' ORDER BY created_at DESC"
+        ).fetchall()
+        job_rows = conn.execute(
+            """
+            SELECT jobs.*, movies.clean_title, movies.year
+            FROM jobs JOIN movies ON jobs.movie_id = movies.id
+            WHERE jobs.job_type = 'library_move' AND jobs.status IN ('queued', 'running', 'error')
+            ORDER BY jobs.id DESC
+            """
+        ).fetchall()
+        return render_template("library.html", movies=movies, jobs=job_rows)
+
+    @app.route("/movies/library", methods=["POST"])
+    def library_selected():
+        movie_ids = request.form.getlist("movie_id", type=int)
+        for movie_id in movie_ids:
+            try:
+                jobs.submit_job(movie_id, "library_move", library_job.library_move)
+            except jobs.JobAlreadyRunning:
+                pass
+        return redirect(url_for("library"))
 
     return app
 

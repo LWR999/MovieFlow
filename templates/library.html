@@ -2,5 +2,65 @@
 {% block title %}Library — MKV Manager{% endblock %}
 {% block content %}
     <h1>Library</h1>
+
+    {% if jobs %}
+    <h2>In progress</h2>
+    <table class="intake-table">
+        <thead>
+            <tr>
+                <th>Movie</th>
+                <th>Status</th>
+                <th>Progress</th>
+                <th>Message</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for j in jobs %}
+            <tr data-job-id="{{ j.id }}">
+                <td>{{ j.clean_title }}{% if j.year %} ({{ j.year }}){% endif %}</td>
+                <td class="job-status">{{ j.status }}</td>
+                <td>
+                    <div class="progress-bar"><div class="progress-bar-fill" style="width: {{ j.progress_pct }}%"></div></div>
+                </td>
+                <td class="job-message">{{ j.message or "" }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% endif %}
+
+    {% if movies %}
+    <h2>Ready for library</h2>
+    <form method="post" action="{{ url_for('library_selected') }}">
+        <div class="bulk-actions">
+            <button type="button" id="select-all">Select all</button>
+            <button type="button" id="select-none">Select none</button>
+            <button type="submit">Move selected</button>
+        </div>
+        <table class="intake-table">
+            <thead>
+                <tr>
+                    <th></th>
+                    <th>Movie</th>
+                    <th>Resolution</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for m in movies %}
+                <tr>
+                    <td><input type="checkbox" name="movie_id" value="{{ m.id }}" class="row-select"></td>
+                    <td>{{ m.clean_title }}{% if m.year %} ({{ m.year }}){% endif %}</td>
+                    <td><span class="badge">{{ m.resolution or "unknown" }}</span></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </form>
+    {% elif not jobs %}
     <div class="empty-state">No movies ready for the library move.</div>
+    {% endif %}
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='jobs_poll.js') }}"></script>
+<script src="{{ url_for('static', filename='processing.js') }}"></script>
 {% endblock %}
