@@ -16,6 +16,7 @@ CREATE TABLE movies (
     is_foreign INTEGER NOT NULL DEFAULT 0,
     resolution TEXT, -- e.g. '1080p', '2160p'
     hdr_flavor TEXT, -- HDR10, DV, HDR10+, SDR, unknown
+    audio_summary TEXT, -- e.g. 'English DTS-HD MA 5.1, Russian AC3 5.1'
     final_path TEXT,
     collision INTEGER NOT NULL DEFAULT 0, -- destination-already-exists block (section 1.4/7/9)
     created_at TEXT NOT NULL DEFAULT (datetime('now')),

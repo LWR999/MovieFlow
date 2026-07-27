@@ -43,7 +43,7 @@
                 </td>
                 <td>{{ m.resolution or "unknown" }}</td>
                 <td>{{ m.hdr_flavor or "unknown" }}</td>
-                <td>—</td>
+                <td>{{ m.audio_summary or "—" }}</td>
                 <td>
                     <input type="checkbox" class="foreign-checkbox" data-movie-id="{{ m.id }}"
                            {% if m.is_foreign %}checked{% endif %}>

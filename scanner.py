@@ -3,6 +3,7 @@ import re
 from pathlib import Path
 
 import config
+import probe
 
 VIDEO_EXTENSIONS = {".mkv", ".mp4"}
 
@@ -91,9 +92,16 @@ def sync_discovered(db):
         if item["original_path"] in existing:
             continue
         title, year = parse_title_year(item["raw_name"])
+        inspection = probe.inspect_media(item["original_path"], item["source_type"])
         db.execute(
-            "INSERT INTO movies (original_path, source_type, title, year) VALUES (?, ?, ?, ?)",
-            (item["original_path"], item["source_type"], title, year),
+            """
+            INSERT INTO movies (original_path, source_type, title, year, resolution, hdr_flavor, audio_summary)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                item["original_path"], item["source_type"], title, year,
+                inspection["resolution"], inspection["hdr_flavor"], inspection["audio_summary"],
+            ),
         )
         inserted += 1
     if inserted:
