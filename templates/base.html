@@ -17,11 +17,7 @@
 <body>
     <nav>
         <span class="brand">MKV Manager</span>
-        <a href="{{ url_for('incoming') }}" class="{{ 'active' if request.endpoint == 'incoming' }}">Incoming</a>
-        <a href="{{ url_for('intake') }}" class="{{ 'active' if request.endpoint == 'intake' }}">Intake</a>
-        <a href="{{ url_for('preprocessing') }}" class="{{ 'active' if request.endpoint == 'preprocessing' }}">Pre-processing</a>
-        <a href="{{ url_for('processing') }}" class="{{ 'active' if request.endpoint == 'processing' }}">Processing</a>
-        <a href="{{ url_for('library') }}" class="{{ 'active' if request.endpoint == 'library' }}">Library</a>
+        <a href="{{ url_for('dashboard') }}" class="{{ 'active' if request.endpoint == 'dashboard' }}">Movies</a>
         <button id="theme-toggle" type="button">☀ / ☾</button>
     </nav>
     <main>

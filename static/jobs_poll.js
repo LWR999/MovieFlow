@@ -4,12 +4,12 @@ function pollJobs() {
         fetch(`/api/jobs/${jobId}`)
             .then((r) => r.json())
             .then((job) => {
-                row.querySelector(".job-status").textContent = job.status;
-                row.querySelector(".job-message").textContent = job.message || "";
                 const fill = row.querySelector(".progress-bar-fill");
                 if (fill) fill.style.width = `${job.progress_pct}%`;
-                if (job.status === "done") {
-                    row.remove();
+                const msg = row.querySelector(".job-message");
+                if (msg) msg.textContent = job.message || "";
+                if (job.status === "done" || job.status === "error") {
+                    location.reload();
                 }
             });
     });

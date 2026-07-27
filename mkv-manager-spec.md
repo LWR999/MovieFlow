@@ -270,12 +270,36 @@ sure (not a silent single-click delete) — that's a UI safety minimum, not a "d
 
 ## 11. UI
 
-- Four screens: **Intake**, **Pre-processing** (job monitor for in-flight pre-processing jobs +
-  the BDMV playlist confirmation UI), **Processing**, **Library**. A simple top nav between them.
-- Dark/light toggle, persisted client-side.
-- Poster art: fetched from TMDb (`https://image.tmdb.org/t/p/w200<poster_path>`) and shown as a
-  thumbnail per row on every screen where a movie is listed.
-- Progress: a progress bar per active job, polling `/api/jobs/<id>`.
+**Revised from the original per-stage-screen design.** The five separate screens (Incoming,
+Intake, Pre-processing, Processing, Library) were built first and worked, but in practice didn't
+"flow" - following one movie's actual journey meant hopping across five disconnected pages, each
+showing a different slice of state with no thread connecting them (a job's progress lived in a
+separate table you had to correlate by movie name; confirming a match could redirect you to a
+screen your movie wasn't even on). The stages/statuses described in sections 6-10 are still
+accurate - `incoming` -> `discovered` -> `preprocessed` -> `processed` -> `in_library` - only the
+*presentation* changed: one screen instead of five.
+
+- **One "Movies" screen**, not five. Every tracked movie shows in one table regardless of stage.
+  Each row computes a single `state` (needs_match / ready_stage / ready_preprocess(_bdmv) /
+  ready_process / ready_library / in_progress / error / done) from its status + collision flag +
+  most recent job, and shows exactly one contextual action for that state - a link (Match, Choose
+  playlist) or a form (Move to staging / Pre-process / Process / Move to library), never more
+  than one at a time. An active job replaces the action with a live progress bar directly on that
+  row (still polling `/api/jobs/<id>`, reloading the page once the job reaches done/error so the
+  row picks up its new state). An errored job shows Retry (re-posts to whichever bulk endpoint
+  matches the job's type) and Dismiss (removes just the stale job row) instead.
+- **Filter chips** (All / Needs Attention / In Progress / Ready / Done) narrow the same table
+  client-side - no navigation, no separate URL.
+- **Bulk actions** work per action type: checking rows with the same next action (e.g. several
+  "ready to process") enables that action's button in the bulk toolbar with a live count; rows
+  needing different actions don't interfere with each other.
+- The TMDb match picker and the BDMV playlist picker remain their own focused sub-pages (a picker
+  is a genuinely different interaction from a list) - both redirect back to the Movies screen (or
+  wherever they were opened from) on confirm, via an explicit `return_to` value rather than
+  relying on the browser's `Referer` header.
+- Dark/light toggle, persisted client-side, unchanged.
+- Poster art: fetched from TMDb and cached locally (section 12 polish), shown as a thumbnail per
+  row.
 
 ---
 

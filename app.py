@@ -6,6 +6,7 @@ import requests
 from flask import Flask, abort, jsonify, redirect, render_template, request, send_file, url_for
 
 import config
+import dashboard as dashboard_module
 import db
 import incoming as incoming_stage
 import jobs
@@ -41,44 +42,13 @@ def create_app():
 
         return send_file(cache_path, mimetype="image/jpeg")
 
-    @app.route("/incoming")
-    def incoming():
-        conn = db.get_db()
-        incoming_stage.sync_incoming(conn)
-        rows = conn.execute(
-            "SELECT * FROM movies WHERE status = 'incoming' ORDER BY created_at DESC"
-        ).fetchall()
-
-        movies = []
-        for row in rows:
-            m = dict(row)
-            if m["tmdb_id"]:
-                m["proposed_category"] = incoming_stage.category_for(
-                    m["source_type"], m["is_foreign"], m["resolution"]
-                )
-            else:
-                m["proposed_category"] = None
-            movies.append(m)
-
-        return render_template("incoming.html", movies=movies)
-
-    @app.route("/movies/<int:movie_id>/move-to-staging", methods=["POST"])
-    def move_to_staging(movie_id):
-        conn = db.get_db()
-        try:
-            incoming_stage.move_to_staging(conn, movie_id)
-        except RuntimeError:
-            pass
-        return redirect(url_for("incoming"))
-
     @app.route("/")
-    def intake():
+    def dashboard():
         conn = db.get_db()
         scanner.sync_discovered(conn)
-        movies = conn.execute(
-            "SELECT * FROM movies WHERE status = 'discovered' ORDER BY created_at DESC"
-        ).fetchall()
-        return render_template("intake.html", movies=movies)
+        incoming_stage.sync_incoming(conn)
+        movies = dashboard_module.annotate_movies(conn)
+        return render_template("dashboard.html", movies=movies)
 
     @app.route("/movies/<int:movie_id>/match")
     def match(movie_id):
@@ -89,7 +59,7 @@ def create_app():
 
         query_title = request.args.get("title", movie["title"] or "")
         query_year = request.args.get("year", movie["year"] or "")
-        return_to = request.args.get("return_to") or request.referrer or url_for("intake")
+        return_to = request.args.get("return_to") or request.referrer or url_for("dashboard")
 
         candidates = []
         error = None
@@ -121,7 +91,7 @@ def create_app():
         year = request.form.get("year") or None
         poster_path = request.form.get("poster_path") or None
         original_language = request.form.get("original_language") or None
-        return_to = request.form.get("return_to") or url_for("intake")
+        return_to = request.form.get("return_to") or url_for("dashboard")
 
         try:
             external_ids = tmdb.get_external_ids(tmdb_id)
@@ -191,25 +161,32 @@ def create_app():
         conn.execute("DELETE FROM movies WHERE id = ?", (movie_id,))
         conn.commit()
 
-        return redirect(request.referrer or url_for("intake"))
+        return redirect(request.referrer or url_for("dashboard"))
 
-    @app.route("/movies/<int:movie_id>/preprocess", methods=["POST"])
-    def trigger_preprocess(movie_id):
+    @app.route("/movies/move-to-staging", methods=["POST"])
+    def bulk_move_to_staging():
         conn = db.get_db()
-        movie = conn.execute("SELECT * FROM movies WHERE id = ?", (movie_id,)).fetchone()
-        if movie is None:
-            abort(404)
-        if not movie["tmdb_id"]:
-            abort(400, "movie must be TMDb-matched before pre-processing")
+        movie_ids = request.form.getlist("movie_id", type=int)
+        for movie_id in movie_ids:
+            try:
+                incoming_stage.move_to_staging(conn, movie_id)
+            except RuntimeError:
+                pass
+        return redirect(url_for("dashboard"))
 
-        if movie["source_type"] == "bdmv":
-            return redirect(url_for("bdmv_playlists", movie_id=movie_id))
-
-        try:
-            jobs.submit_job(movie_id, "preprocess", preprocess.preprocess_mp4)
-        except jobs.JobAlreadyRunning:
-            pass
-        return redirect(url_for("preprocessing"))
+    @app.route("/movies/preprocess", methods=["POST"])
+    def bulk_preprocess():
+        conn = db.get_db()
+        movie_ids = request.form.getlist("movie_id", type=int)
+        for movie_id in movie_ids:
+            movie = conn.execute("SELECT * FROM movies WHERE id = ?", (movie_id,)).fetchone()
+            if movie is None or not movie["tmdb_id"] or movie["source_type"] == "bdmv":
+                continue
+            try:
+                jobs.submit_job(movie_id, "preprocess", preprocess.preprocess_mp4)
+            except jobs.JobAlreadyRunning:
+                pass
+        return redirect(url_for("dashboard"))
 
     @app.route("/movies/<int:movie_id>/preprocess/bdmv")
     def bdmv_playlists(movie_id):
@@ -239,7 +216,7 @@ def create_app():
             jobs.submit_job(movie_id, "preprocess", preprocess.preprocess_bdmv, playlist_filename)
         except jobs.JobAlreadyRunning:
             pass
-        return redirect(url_for("preprocessing"))
+        return redirect(url_for("dashboard"))
 
     @app.route("/jobs/<int:job_id>/dismiss", methods=["POST"])
     def dismiss_job(job_id):
@@ -251,7 +228,7 @@ def create_app():
             abort(409, "cannot dismiss a job that is still queued or running")
         conn.execute("DELETE FROM jobs WHERE id = ?", (job_id,))
         conn.commit()
-        return redirect(request.referrer or url_for("intake"))
+        return redirect(request.referrer or url_for("dashboard"))
 
     @app.route("/api/jobs/<int:job_id>")
     def get_job(job_id):
@@ -271,35 +248,6 @@ def create_app():
             rows = conn.execute("SELECT * FROM jobs ORDER BY id DESC").fetchall()
         return jsonify([dict(r) for r in rows])
 
-    @app.route("/preprocessing")
-    def preprocessing():
-        conn = db.get_db()
-        job_rows = conn.execute(
-            """
-            SELECT jobs.*, movies.title, movies.clean_title, movies.year
-            FROM jobs JOIN movies ON jobs.movie_id = movies.id
-            WHERE jobs.job_type = 'preprocess' AND jobs.status IN ('queued', 'running', 'error')
-            ORDER BY jobs.id DESC
-            """
-        ).fetchall()
-        return render_template("preprocessing.html", jobs=job_rows)
-
-    @app.route("/processing")
-    def processing():
-        conn = db.get_db()
-        movies = conn.execute(
-            "SELECT * FROM movies WHERE status = 'preprocessed' ORDER BY created_at DESC"
-        ).fetchall()
-        job_rows = conn.execute(
-            """
-            SELECT jobs.*, movies.clean_title, movies.year
-            FROM jobs JOIN movies ON jobs.movie_id = movies.id
-            WHERE jobs.job_type = 'process' AND jobs.status IN ('queued', 'running', 'error')
-            ORDER BY jobs.id DESC
-            """
-        ).fetchall()
-        return render_template("processing.html", movies=movies, jobs=job_rows)
-
     @app.route("/movies/process", methods=["POST"])
     def process_selected():
         movie_ids = request.form.getlist("movie_id", type=int)
@@ -308,23 +256,7 @@ def create_app():
                 jobs.submit_job(movie_id, "process", audio_processing.process_audio)
             except jobs.JobAlreadyRunning:
                 pass
-        return redirect(url_for("processing"))
-
-    @app.route("/library")
-    def library():
-        conn = db.get_db()
-        movies = conn.execute(
-            "SELECT * FROM movies WHERE status = 'processed' ORDER BY created_at DESC"
-        ).fetchall()
-        job_rows = conn.execute(
-            """
-            SELECT jobs.*, movies.clean_title, movies.year
-            FROM jobs JOIN movies ON jobs.movie_id = movies.id
-            WHERE jobs.job_type = 'library_move' AND jobs.status IN ('queued', 'running', 'error')
-            ORDER BY jobs.id DESC
-            """
-        ).fetchall()
-        return render_template("library.html", movies=movies, jobs=job_rows)
+        return redirect(url_for("dashboard"))
 
     @app.route("/movies/library", methods=["POST"])
     def library_selected():
@@ -334,7 +266,7 @@ def create_app():
                 jobs.submit_job(movie_id, "library_move", library_job.library_move)
             except jobs.JobAlreadyRunning:
                 pass
-        return redirect(url_for("library"))
+        return redirect(url_for("dashboard"))
 
     return app
 
