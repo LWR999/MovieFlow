@@ -52,21 +52,36 @@ def move_to_staging(conn, movie_id):
     movie = conn.execute("SELECT * FROM movies WHERE id = ?", (movie_id,)).fetchone()
     if movie is None:
         raise RuntimeError(f"movie {movie_id} not found")
+    if not movie["clean_title"] or not movie["year"]:
+        raise RuntimeError("movie must be TMDb-matched before moving to staging")
 
     source = Path(movie["original_path"])
     category = category_for(movie["source_type"], movie["is_foreign"], movie["resolution"])
-    destination = Path(config.TORRENTS_ROOT) / category / source.name
+    folder_name = f"{movie['clean_title']} ({movie['year']})"
+    destination_folder = Path(config.TORRENTS_ROOT) / category / folder_name
 
-    if destination.exists():
+    if destination_folder.exists():
         conn.execute(
             "UPDATE movies SET collision = 1, updated_at = datetime('now') WHERE id = ?",
             (movie_id,),
         )
         conn.commit()
-        raise RuntimeError(f"destination already exists: {destination}")
+        raise RuntimeError(f"destination already exists: {destination_folder}")
 
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    shutil.move(str(source), str(destination))
+    destination_folder.parent.mkdir(parents=True, exist_ok=True)
+
+    if source.is_dir():
+        # BDMV package or a subfolder already containing the video - rename
+        # the whole thing into place, keeping whatever's inside as-is.
+        shutil.move(str(source), str(destination_folder))
+        new_original_path = destination_folder
+    else:
+        # Loose file - wrap it in the IMDb-named folder, keeping its raw
+        # filename untouched inside (Pre-processing renames the file itself).
+        destination_folder.mkdir(parents=True)
+        new_file_path = destination_folder / source.name
+        shutil.move(str(source), str(new_file_path))
+        new_original_path = new_file_path
 
     conn.execute(
         """
@@ -74,7 +89,7 @@ def move_to_staging(conn, movie_id):
             updated_at = datetime('now')
         WHERE id = ?
         """,
-        (str(destination), movie_id),
+        (str(new_original_path), movie_id),
     )
     conn.commit()
-    return destination
+    return new_original_path

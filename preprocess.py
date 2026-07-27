@@ -87,6 +87,11 @@ def _prepare_working_folder(movie, folder_name):
         )
         return working_folder, source_file
 
+    if original_path.parent.name == folder_name:
+        # Already wrapped in the IMDb-named folder (e.g. by the Incoming
+        # stage's move-to-staging step) - nothing to relocate.
+        return original_path.parent, original_path
+
     working_folder = original_path.parent / folder_name
     working_folder.mkdir(exist_ok=True)
     source_file = working_folder / original_path.name
@@ -95,11 +100,15 @@ def _prepare_working_folder(movie, folder_name):
 
 
 def _mkvmerge_duration(path):
-    """Duration in seconds via mkvmerge -J, or None if it can't be determined."""
+    """Playlist duration in seconds via mkvmerge -J, or None if it can't be
+    determined. Only ever called on .mpls files - mkvmerge reports this as
+    container.properties.playlist_duration (nanoseconds), not the plain
+    "duration" key a non-playlist input would use."""
     try:
         cmd = ["mkvmerge", "-J", str(path)]
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=30, check=True)
-        duration_ns = json.loads(result.stdout).get("container", {}).get("properties", {}).get("duration")
+        props = json.loads(result.stdout).get("container", {}).get("properties", {})
+        duration_ns = props.get("playlist_duration")
         return duration_ns / 1_000_000_000 if duration_ns else None
     except Exception:
         return None
@@ -252,19 +261,28 @@ def preprocess_mp4(movie_id, progress):
         working_folder, source_file = _prepare_working_folder(movie, folder_name)
         output_path = working_folder / f"{folder_name}.mkv"
 
-        progress(10, "probing source")
-        try:
-            duration = _ffprobe_duration(source_file)
-        except Exception:
-            duration = None
+        if source_file.suffix.lower() == ".mkv":
+            # Already the right container - a container remux would just
+            # read and rewrite the whole file for no benefit. Rename only.
+            progress(50, "renaming to final filename")
+            if source_file != output_path:
+                source_file.rename(output_path)
+            if not output_path.exists() or output_path.stat().st_size == 0:
+                raise RuntimeError(f"output missing or empty: {output_path}")
+        else:
+            progress(10, "probing source")
+            try:
+                duration = _ffprobe_duration(source_file)
+            except Exception:
+                duration = None
 
-        progress(15, "converting to MKV")
-        _run_ffmpeg_remux(source_file, output_path, progress, duration)
+            progress(15, "converting to MKV")
+            _run_ffmpeg_remux(source_file, output_path, progress, duration)
 
-        progress(85, "verifying output")
-        _verify_duration(duration, output_path)
+            progress(85, "verifying output")
+            _verify_duration(duration, output_path)
 
-        source_file.unlink()
+            source_file.unlink()
 
         progress(90, "cleaning up extra files")
         _cleanup_extra_files(working_folder, output_path)
