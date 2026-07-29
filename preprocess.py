@@ -61,8 +61,8 @@ def _move_to_destination(conn, movie_id, movie, working_folder, folder_name):
 
     if destination.exists():
         conn.execute(
-            "UPDATE movies SET collision = 1, updated_at = datetime('now') WHERE id = ?",
-            (movie_id,),
+            "UPDATE movies SET collision = 1, collision_path = ?, updated_at = datetime('now') WHERE id = ?",
+            (str(destination), movie_id),
         )
         conn.commit()
         raise RuntimeError(f"destination already exists: {destination}")
@@ -216,7 +216,7 @@ def preprocess_bdmv(movie_id, progress, playlist_filename):
 
         conn.execute(
             """
-            UPDATE movies SET status = 'preprocessed', final_path = ?, collision = 0,
+            UPDATE movies SET status = 'preprocessed', final_path = ?, collision = 0, collision_path = NULL,
                 updated_at = datetime('now')
             WHERE id = ?
             """,
@@ -299,7 +299,7 @@ def preprocess_mp4(movie_id, progress):
 
         conn.execute(
             """
-            UPDATE movies SET status = 'preprocessed', final_path = ?, collision = 0,
+            UPDATE movies SET status = 'preprocessed', final_path = ?, collision = 0, collision_path = NULL,
                 updated_at = datetime('now')
             WHERE id = ?
             """,

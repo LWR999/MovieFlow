@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}Workbench — MKV Manager{% endblock %}
+{% block content %}
+    <h1>Workbench</h1>
+    <p class="muted">Movies currently being pushed through pre-processing and audio processing.</p>
+
+    {% if movies %}
+    <table class="intake-table">
+        <thead>
+            <tr>
+                <th></th>
+                <th>Title</th>
+                <th>Status</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for m in movies %}
+            <tr {% if m.state == 'in_progress' %}data-job-id="{{ m.job_id }}"{% endif %}>
+                <td>
+                    {% if m.poster_path %}
+                    <img class="poster-thumb" src="{{ url_for('poster', poster_path=m.poster_path.lstrip('/')) }}" alt="">
+                    {% endif %}
+                </td>
+                <td>
+                    <a href="{{ url_for('movie_detail', movie_id=m.id) }}">
+                        {{ m.clean_title }}{% if m.year %} ({{ m.year }}){% endif %}
+                    </a>
+                    {% if m.collision %}<span class="badge badge-danger">⚠ collision</span>{% endif %}
+                </td>
+                <td>
+                    {% if m.state == 'in_progress' %}
+                        <div class="progress-bar"><div class="progress-bar-fill" style="width: {{ m.job_progress_pct }}%"></div></div>
+                        <span class="job-message">{{ m.job_message or m.job_status }}</span>
+                    {% else %}
+                        <span class="badge {% if m.state == 'error' %}badge-danger{% endif %}">{{ m.state_label }}</span>
+                    {% endif %}
+                </td>
+                <td><a href="{{ url_for('movie_detail', movie_id=m.id) }}">Open</a></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">Nothing in the Workbench right now.</div>
+    {% endif %}
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='jobs_poll.js') }}"></script>
+{% endblock %}

@@ -1,5 +1,5 @@
 function pollJobs() {
-    document.querySelectorAll("tr[data-job-id]").forEach(function (row) {
+    document.querySelectorAll("[data-job-id]").forEach(function (row) {
         const jobId = row.dataset.jobId;
         fetch(`/api/jobs/${jobId}`)
             .then((r) => r.json())

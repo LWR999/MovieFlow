@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+{% block title %}{{ movie.clean_title or movie.title or "Unmatched" }} — MKV Manager{% endblock %}
+{% block content %}
+    <p><a href="{{ url_for(back_endpoint) }}">&larr; Back</a></p>
+
+    <div class="detail-header">
+        {% if movie.poster_path %}
+        <img class="detail-poster" src="{{ url_for('poster', poster_path=movie.poster_path.lstrip('/')) }}" alt="">
+        {% else %}
+        <div class="poster-placeholder detail-poster">No poster</div>
+        {% endif %}
+        <div>
+            <h1>
+                {% if movie.tmdb_id %}
+                    {{ movie.clean_title }}{% if movie.year %} ({{ movie.year }}){% endif %}
+                {% else %}
+                    {{ movie.title or "(untitled)" }}{% if movie.year %} ({{ movie.year }}){% endif %}
+                {% endif %}
+            </h1>
+            <p>
+                <span class="badge {% if movie.state == 'error' %}badge-danger{% elif movie.state == 'needs_match' %}badge-muted{% endif %}">{{ movie.state_label }}</span>
+                {% if movie.tmdb_id %}
+                <a class="badge badge-muted badge-link" href="{{ url_for('match', movie_id=movie.id, return_to=url_for('movie_detail', movie_id=movie.id)) }}">re-match</a>
+                {% endif %}
+            </p>
+            <p class="muted">{{ movie.final_path or movie.original_path }}</p>
+        </div>
+    </div>
+
+    <table class="intake-table">
+        <tr>
+            <th>Type</th>
+            <td>
+                {% if movie.source_type == 'bdmv' %}BDMV (unmuxed)
+                {% elif movie.source_type == 'mp4' %}MP4 (needs container remux)
+                {% else %}MKV{% endif %}
+            </td>
+        </tr>
+        <tr><th>Resolution</th><td>{{ movie.resolution or "unknown" }}</td></tr>
+        <tr><th>HDR</th><td>{{ movie.hdr_flavor or "unknown" }}</td></tr>
+        <tr><th>Audio tracks</th><td>{{ movie.audio_summary or "—" }}</td></tr>
+        <tr>
+            <th>Foreign</th>
+            <td>
+                <input type="checkbox" id="foreign-checkbox" data-movie-id="{{ movie.id }}" {% if movie.is_foreign %}checked{% endif %}>
+                <span class="muted">
+                    {% if movie.status == 'incoming' %}
+                        Determines which staging category this lands in (Foreign vs. a resolution-based folder).
+                    {% else %}
+                        Folder category is already set — this now only controls which audio tracks are kept when Processing.
+                    {% endif %}
+                </span>
+            </td>
+        </tr>
+    </table>
+
+    {% if movie.collision %}
+    <div class="error-box">⚠ Destination already exists: <code>{{ movie.collision_path }}</code>. Resolve this outside the app (move, rename, or delete the conflicting folder), then retry below.</div>
+    {% endif %}
+
+    <div class="action-panel" {% if movie.state == 'in_progress' %}data-job-id="{{ movie.job_id }}"{% endif %}>
+        {% if movie.state == 'in_progress' %}
+            <div class="progress-bar"><div class="progress-bar-fill" style="width: {{ movie.job_progress_pct }}%"></div></div>
+            <p class="job-message">{{ movie.job_message or movie.job_status }}</p>
+        {% elif movie.state == 'error' %}
+            <div class="error-box">{{ movie.job_message }}</div>
+            {% if movie.job_type == 'preprocess' and movie.source_type == 'bdmv' %}
+            <a class="badge badge-link" href="{{ url_for('bdmv_playlists', movie_id=movie.id) }}">Choose playlist</a>
+            {% else %}
+            <form method="post" action="{{ url_for('advance_movie', movie_id=movie.id) }}" class="inline-form">
+                <button type="submit">Retry</button>
+            </form>
+            {% endif %}
+            <form method="post" action="{{ url_for('dismiss_job', job_id=movie.job_id) }}" class="inline-form">
+                <button type="submit">Dismiss</button>
+            </form>
+        {% elif movie.state == 'needs_match' %}
+            <a class="badge badge-link" href="{{ url_for('match', movie_id=movie.id, return_to=url_for('movie_detail', movie_id=movie.id)) }}">Match on TMDb</a>
+        {% elif movie.state == 'ready_stage' %}
+            <form method="post" action="{{ url_for('advance_movie', movie_id=movie.id) }}">
+                <button type="submit">Move to staging</button>
+            </form>
+        {% elif movie.state == 'ready_preprocess_bdmv' %}
+            <a class="badge badge-link" href="{{ url_for('bdmv_playlists', movie_id=movie.id) }}">Choose playlist &amp; pre-process</a>
+        {% elif movie.state == 'ready_preprocess' %}
+            <form method="post" action="{{ url_for('advance_movie', movie_id=movie.id) }}">
+                <button type="submit">Pre-process</button>
+            </form>
+        {% elif movie.state == 'ready_process' %}
+            <form method="post" action="{{ url_for('advance_movie', movie_id=movie.id) }}">
+                <button type="submit">Process audio</button>
+            </form>
+        {% elif movie.state == 'ready_library' %}
+            <p class="muted">Fully prepped. Head to <a href="{{ url_for('library_queue') }}">Ready for Library</a> to commit it along with the rest of the batch.</p>
+        {% else %}
+            <p class="muted">In the Plex library at {{ movie.final_path }}.</p>
+        {% endif %}
+    </div>
+
+    <form method="post" action="{{ url_for('delete_movie', movie_id=movie.id) }}"
+          data-confirm="Delete {{ movie.clean_title or movie.title or 'this item' }}? This cannot be undone.">
+        <button type="submit" class="delete-btn">Delete</button>
+    </form>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='jobs_poll.js') }}"></script>
+<script>
+document.getElementById("foreign-checkbox")?.addEventListener("change", function () {
+    fetch(`/movies/${this.dataset.movieId}/foreign`, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: `is_foreign=${this.checked ? "1" : "0"}`,
+    });
+});
+</script>
+{% endblock %}

@@ -115,8 +115,8 @@ def move_to_staging(conn, movie_id):
 
     if destination_folder.exists():
         conn.execute(
-            "UPDATE movies SET collision = 1, updated_at = datetime('now') WHERE id = ?",
-            (movie_id,),
+            "UPDATE movies SET collision = 1, collision_path = ?, updated_at = datetime('now') WHERE id = ?",
+            (str(destination_folder), movie_id),
         )
         conn.commit()
         raise RuntimeError(f"destination already exists: {destination_folder}")
@@ -138,7 +138,7 @@ def move_to_staging(conn, movie_id):
 
     conn.execute(
         """
-        UPDATE movies SET original_path = ?, status = 'discovered', collision = 0,
+        UPDATE movies SET original_path = ?, status = 'discovered', collision = 0, collision_path = NULL,
             updated_at = datetime('now')
         WHERE id = ?
         """,

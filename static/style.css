@@ -247,64 +247,21 @@ main {
     transition: width 0.3s ease;
 }
 
-.bulk-actions {
+.detail-header {
     display: flex;
-    gap: 0.75rem;
-    margin-bottom: 1rem;
+    gap: 1.5rem;
+    align-items: flex-start;
+    margin-bottom: 1.5rem;
 }
 
-.bulk-actions button {
-    border: 1px solid var(--border);
-    background: var(--card-bg);
-    color: var(--fg);
-    border-radius: 6px;
-    padding: 0.4rem 0.8rem;
-    cursor: pointer;
+.detail-poster {
+    width: 180px;
+    flex-shrink: 0;
+    border-radius: 8px;
 }
 
-.bulk-actions button[type="submit"] {
-    background: var(--accent);
-    color: #fff;
-    border-color: var(--accent);
-}
-
-.bulk-actions button[data-bulk-submit] {
-    background: var(--accent);
-    color: #fff;
-    border-color: var(--accent);
-}
-
-.bulk-actions button:disabled {
-    background: var(--card-bg);
-    color: var(--muted);
-    border-color: var(--border);
-    cursor: not-allowed;
-}
-
-.filter-chips {
-    display: flex;
-    gap: 0.5rem;
-    margin-bottom: 1rem;
-}
-
-.chip {
-    border: 1px solid var(--border);
-    background: var(--card-bg);
-    color: var(--muted);
-    border-radius: 999px;
-    padding: 0.35rem 0.9rem;
-    font-size: 0.85rem;
-    cursor: pointer;
-}
-
-.chip.active {
-    background: var(--accent);
-    color: #fff;
-    border-color: var(--accent);
-}
-
-.action-cell {
-    min-width: 140px;
+.action-panel {
+    margin: 1.5rem 0;
 }
 
 .delete-btn {

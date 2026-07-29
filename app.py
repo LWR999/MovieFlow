@@ -6,7 +6,6 @@ import requests
 from flask import Flask, abort, jsonify, redirect, render_template, request, send_file, url_for
 
 import config
-import dashboard as dashboard_module
 import db
 import incoming as incoming_stage
 import jobs
@@ -14,10 +13,19 @@ import library as library_job
 import naming
 import preprocess
 import processing as audio_processing
+import queries
 import scanner
 import tmdb
 
 TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p/w200"
+
+_DETAIL_BACK_ENDPOINT = {
+    "incoming": "intake",
+    "discovered": "workbench",
+    "preprocessed": "workbench",
+    "processed": "library_queue",
+    "in_library": "library_queue",
+}
 
 
 def create_app():
@@ -25,6 +33,10 @@ def create_app():
     app.config["DEBUG"] = config.FLASK_DEBUG
 
     db.init_app(app)
+
+    def _sync(conn):
+        incoming_stage.sync_incoming(conn)
+        scanner.sync_discovered(conn)
 
     @app.route("/posters/<path:poster_path>")
     def poster(poster_path):
@@ -43,12 +55,73 @@ def create_app():
         return send_file(cache_path, mimetype="image/jpeg")
 
     @app.route("/")
-    def dashboard():
+    def intake():
         conn = db.get_db()
-        scanner.sync_discovered(conn)
-        incoming_stage.sync_incoming(conn)
-        movies = dashboard_module.annotate_movies(conn)
-        return render_template("dashboard.html", movies=movies)
+        _sync(conn)
+        movies = queries.intake_movies(conn)
+        return render_template("intake.html", movies=movies)
+
+    @app.route("/workbench")
+    def workbench():
+        conn = db.get_db()
+        _sync(conn)
+        movies = queries.workbench_movies(conn)
+        return render_template("workbench.html", movies=movies)
+
+    @app.route("/library-queue")
+    def library_queue():
+        conn = db.get_db()
+        movies = queries.library_queue_movies(conn)
+        return render_template("library_queue.html", movies=movies)
+
+    @app.route("/library-queue/commit", methods=["POST"])
+    def commit_library():
+        conn = db.get_db()
+        for movie in queries.library_queue_movies(conn):
+            if movie["state"] == "in_progress":
+                continue
+            try:
+                jobs.submit_job(movie["id"], "library_move", library_job.library_move)
+            except jobs.JobAlreadyRunning:
+                pass
+        return redirect(url_for("library_queue"))
+
+    @app.route("/movies/<int:movie_id>")
+    def movie_detail(movie_id):
+        conn = db.get_db()
+        movie = queries.movie_with_job(conn, movie_id)
+        if movie is None:
+            abort(404)
+        return render_template(
+            "movie_detail.html", movie=movie, back_endpoint=_DETAIL_BACK_ENDPOINT[movie["status"]]
+        )
+
+    @app.route("/movies/<int:movie_id>/advance", methods=["POST"])
+    def advance_movie(movie_id):
+        conn = db.get_db()
+        movie = conn.execute("SELECT * FROM movies WHERE id = ?", (movie_id,)).fetchone()
+        if movie is None:
+            abort(404)
+
+        if movie["status"] == "incoming":
+            try:
+                incoming_stage.move_to_staging(conn, movie_id)
+            except RuntimeError:
+                pass  # collision recorded on the movie row; detail page shows it
+        elif movie["status"] == "discovered":
+            if movie["source_type"] == "bdmv":
+                return redirect(url_for("bdmv_playlists", movie_id=movie_id))
+            try:
+                jobs.submit_job(movie_id, "preprocess", preprocess.preprocess_mp4)
+            except jobs.JobAlreadyRunning:
+                pass
+        elif movie["status"] == "preprocessed":
+            try:
+                jobs.submit_job(movie_id, "process", audio_processing.process_audio)
+            except jobs.JobAlreadyRunning:
+                pass
+
+        return redirect(url_for("movie_detail", movie_id=movie_id))
 
     @app.route("/movies/<int:movie_id>/match")
     def match(movie_id):
@@ -59,7 +132,7 @@ def create_app():
 
         query_title = request.args.get("title", movie["title"] or "")
         query_year = request.args.get("year", movie["year"] or "")
-        return_to = request.args.get("return_to") or request.referrer or url_for("dashboard")
+        return_to = request.args.get("return_to") or request.referrer or url_for("movie_detail", movie_id=movie_id)
 
         candidates = []
         error = None
@@ -91,7 +164,7 @@ def create_app():
         year = request.form.get("year") or None
         poster_path = request.form.get("poster_path") or None
         original_language = request.form.get("original_language") or None
-        return_to = request.form.get("return_to") or url_for("dashboard")
+        return_to = request.form.get("return_to") or url_for("movie_detail", movie_id=movie_id)
 
         try:
             external_ids = tmdb.get_external_ids(tmdb_id)
@@ -161,32 +234,7 @@ def create_app():
         conn.execute("DELETE FROM movies WHERE id = ?", (movie_id,))
         conn.commit()
 
-        return redirect(request.referrer or url_for("dashboard"))
-
-    @app.route("/movies/move-to-staging", methods=["POST"])
-    def bulk_move_to_staging():
-        conn = db.get_db()
-        movie_ids = request.form.getlist("movie_id", type=int)
-        for movie_id in movie_ids:
-            try:
-                incoming_stage.move_to_staging(conn, movie_id)
-            except RuntimeError:
-                pass
-        return redirect(url_for("dashboard"))
-
-    @app.route("/movies/preprocess", methods=["POST"])
-    def bulk_preprocess():
-        conn = db.get_db()
-        movie_ids = request.form.getlist("movie_id", type=int)
-        for movie_id in movie_ids:
-            movie = conn.execute("SELECT * FROM movies WHERE id = ?", (movie_id,)).fetchone()
-            if movie is None or not movie["tmdb_id"] or movie["source_type"] == "bdmv":
-                continue
-            try:
-                jobs.submit_job(movie_id, "preprocess", preprocess.preprocess_mp4)
-            except jobs.JobAlreadyRunning:
-                pass
-        return redirect(url_for("dashboard"))
+        return redirect(request.referrer or url_for("intake"))
 
     @app.route("/movies/<int:movie_id>/preprocess/bdmv")
     def bdmv_playlists(movie_id):
@@ -216,7 +264,7 @@ def create_app():
             jobs.submit_job(movie_id, "preprocess", preprocess.preprocess_bdmv, playlist_filename)
         except jobs.JobAlreadyRunning:
             pass
-        return redirect(url_for("dashboard"))
+        return redirect(url_for("movie_detail", movie_id=movie_id))
 
     @app.route("/jobs/<int:job_id>/dismiss", methods=["POST"])
     def dismiss_job(job_id):
@@ -226,9 +274,10 @@ def create_app():
             abort(404)
         if job["status"] not in ("error", "done"):
             abort(409, "cannot dismiss a job that is still queued or running")
+        movie_id = job["movie_id"]
         conn.execute("DELETE FROM jobs WHERE id = ?", (job_id,))
         conn.commit()
-        return redirect(request.referrer or url_for("dashboard"))
+        return redirect(request.referrer or url_for("movie_detail", movie_id=movie_id))
 
     @app.route("/api/jobs/<int:job_id>")
     def get_job(job_id):
@@ -247,26 +296,6 @@ def create_app():
         else:
             rows = conn.execute("SELECT * FROM jobs ORDER BY id DESC").fetchall()
         return jsonify([dict(r) for r in rows])
-
-    @app.route("/movies/process", methods=["POST"])
-    def process_selected():
-        movie_ids = request.form.getlist("movie_id", type=int)
-        for movie_id in movie_ids:
-            try:
-                jobs.submit_job(movie_id, "process", audio_processing.process_audio)
-            except jobs.JobAlreadyRunning:
-                pass
-        return redirect(url_for("dashboard"))
-
-    @app.route("/movies/library", methods=["POST"])
-    def library_selected():
-        movie_ids = request.form.getlist("movie_id", type=int)
-        for movie_id in movie_ids:
-            try:
-                jobs.submit_job(movie_id, "library_move", library_job.library_move)
-            except jobs.JobAlreadyRunning:
-                pass
-        return redirect(url_for("dashboard"))
 
     return app
 

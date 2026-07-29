@@ -21,6 +21,7 @@ CREATE TABLE movies (
     audio_summary TEXT, -- e.g. 'English DTS-HD MA 5.1, Russian AC3 5.1'
     final_path TEXT,
     collision INTEGER NOT NULL DEFAULT 0, -- destination-already-exists block (section 1.4/7/9)
+    collision_path TEXT, -- the conflicting destination path, so the UI can show it after the job that hit it is dismissed
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );

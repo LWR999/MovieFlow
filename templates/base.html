@@ -17,7 +17,9 @@
 <body>
     <nav>
         <span class="brand">MKV Manager</span>
-        <a href="{{ url_for('dashboard') }}" class="{{ 'active' if request.endpoint == 'dashboard' }}">Movies</a>
+        <a href="{{ url_for('intake') }}" class="{{ 'active' if request.endpoint == 'intake' }}">Intake</a>
+        <a href="{{ url_for('workbench') }}" class="{{ 'active' if request.endpoint == 'workbench' }}">Workbench</a>
+        <a href="{{ url_for('library_queue') }}" class="{{ 'active' if request.endpoint == 'library_queue' }}">Ready for Library</a>
         <button id="theme-toggle" type="button">☀ / ☾</button>
     </nav>
     <main>
