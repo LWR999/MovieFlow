@@ -220,7 +220,8 @@ def preprocess_bdmv(movie_id, progress, playlist_filename):
 
         conn.execute(
             """
-            UPDATE movies SET status = 'preprocessed', final_path = ?, collision = 0, collision_path = NULL,
+            UPDATE movies SET status = 'preprocessed', source_type = 'mkv', final_path = ?,
+                collision = 0, collision_path = NULL,
                 resolution = COALESCE(?, resolution),
                 hdr_flavor = COALESCE(?, hdr_flavor),
                 audio_summary = COALESCE(?, audio_summary),
@@ -309,7 +310,8 @@ def preprocess_mp4(movie_id, progress):
 
         conn.execute(
             """
-            UPDATE movies SET status = 'preprocessed', final_path = ?, collision = 0, collision_path = NULL,
+            UPDATE movies SET status = 'preprocessed', source_type = 'mkv', final_path = ?,
+                collision = 0, collision_path = NULL,
                 resolution = COALESCE(?, resolution),
                 hdr_flavor = COALESCE(?, hdr_flavor),
                 audio_summary = COALESCE(?, audio_summary),
