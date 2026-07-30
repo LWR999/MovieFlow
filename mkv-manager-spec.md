@@ -8,23 +8,27 @@ movie download pipeline that goes:
 ```
 /home/dl/torrents/completed/           incoming torrents land here (unsorted), plus TV/ (out of scope)
         │
-        ▼  STAGE 0: Incoming (TMDb match + sort into staging/'s category folders)
+        ▼  status: incoming     (TMDb match + sort into staging/'s category folders)
 /home/dl/torrents/staging/{1080p,4K,Blurays,Foreign}
         │
-        ▼  STAGE 1: Intake / Pre-processing
-        ▼  STAGE 2: Processing (audio track cleanup)
-        ▼  STAGE 3: Library (copy to final Plex library paths)
+        ▼  status: discovered   (pre-processing: container remux / BDMV playlist remux)
+        ▼  status: preprocessed (audio track cleanup)
+        ▼  status: processed    (copy to final Plex library paths)
+        ▼  status: in_library
 ```
 
-`completed/` is scanned by the **Incoming** stage (not Intake) - raw torrent
-client output, unsorted. Incoming matches each item against TMDb (same
-picker as Intake used to do) and, on confirmation, moves it into
-`staging/`'s category folder (`Blurays` for BDMV, `Foreign` if
-`original_language != 'en'`, else `4K`/`1080p` by resolution - same rule as
-section 1.1). Only once an item has been moved into `staging/` does Intake
-see it - by that point it already has a confirmed TMDb match, so Intake no
-longer does its own matching; it just lists staged movies ready to
-pre-process. `completed/TV/` is out of scope regardless — never touch it.
+`completed/` is scanned for raw, unsorted torrent client output (never `TV/`
+— out of scope regardless). Each item is matched against TMDb (top result
+auto-accepted, re-match always available - section 5) and, via a "Move to
+staging" action, moved into `staging/`'s category folder (`Blurays` for
+BDMV, `Foreign` if `original_language != 'en'`, else `4K`/`1080p` by
+resolution - same rule as section 1.1).
+
+In practice only 2-3 movies are ever being worked on at once, one at a time
+- the UI (section 11) is built around that reality rather than a bulk/batch
+model: pick one movie from Intake, push it through pre-processing and
+processing on its own page, then commit everything that's fully prepped to
+the library together, in one step.
 
 Existing shell scripts exist for parts of this (MP4→MKV conversion via ffmpeg, possibly BDMV
 handling). The user will share these on request if Claude Code gets stuck reverse-engineering
@@ -52,10 +56,12 @@ ask for it.
    re-search."
 4. **Folder collisions:** if a proposed destination folder already exists (e.g. reprocessing, or
    a duplicate download), the app **blocks that specific movie** — it doesn't overwrite, doesn't
-   auto-suffix, and doesn't skip silently. It shows a clear "destination already exists" state on
-   that row and stays blocked until you've manually cleared the collision (e.g. deleted the old
-   copy from Plex/the library folder yourself) and re-triggered the move. Other movies in the
-   same batch are unaffected — this only blocks the one movie in conflict.
+   auto-suffix, and doesn't skip silently. It shows a clear "destination already exists" state,
+   with the exact conflicting path (persisted on the movie row, not just in the transient job
+   message, so it's still visible after the error job is dismissed), and stays blocked until
+   you've manually cleared the collision (e.g. deleted the old copy from Plex/the library folder
+   yourself) and re-triggered the move. Other movies are unaffected — this only blocks the one
+   movie in conflict.
 5. Single-user, LAN-only tool — no auth, no HTTPS requirement, no multi-tenancy.
 
 ---
@@ -127,13 +133,13 @@ This is a best-effort first guess only. **The UI must let you edit title + year 
 
 1. Search `/search/movie?query=<title>&year=<year_if_present>`.
 2. If year is missing, search by title alone.
-3. **Auto-accept the top result at Incoming discovery time** (revised from the original "never
+3. **Auto-accept the top result at Intake discovery time** (revised from the original "never
    auto-accept" design - per your later instruction, matching should run automatically so you
    only have to act on the exceptions). If TMDb returns no candidates, or the search/lookup
    fails, the item just falls back to the manual "needs match" state as before. A "re-match" link
-   is always available (on both Incoming and Intake) to open the same TMDb candidate picker
-   (poster thumbnail, title, year, TMDb rating, top N e.g. 5) with a manual title/year input to
-   re-search, in case the auto-match picked the wrong film.
+   is always available on the movie detail page (section 11), regardless of stage, to open the
+   same TMDb candidate picker (poster thumbnail, title, year, TMDb rating, top N e.g. 5) with a
+   manual title/year input to re-search, in case the auto-match picked the wrong film.
 4. On confirm (auto or manual), store: `tmdb_id`, `imdb_id`, `title` (clean), `year`,
    `original_language`, `poster_path` in the movie's SQLite record. This becomes the proposed
    filename shown on the Intake screen.
@@ -143,9 +149,9 @@ This is a best-effort first guess only. **The UI must let you edit title + year 
 
 ---
 
-## 6. Stage 0 — Incoming screen, and Stage 1 — Intake screen
+## 6. Stage 0 — Intake, and Stage 1 — Workbench (pre-processing readiness)
 
-### 6a. Stage 0 — Incoming screen
+### 6a. Stage 0 — Intake
 
 On load, scan `/home/dl/torrents/completed/` (top-level only, not `TV/`) for:
 - Top-level `.mkv` or `.mp4` files directly in `completed/`, and
@@ -155,38 +161,30 @@ Anything found that isn't already a recorded row in SQLite (matched by original 
 row created in `status = incoming`.
 
 Title/year parsing runs immediately, followed by an automatic TMDb match attempt against the top
-search result (section 5) - most items arrive already matched, needing no action. Each item also
-gets resolution/HDR/audio probing, a type badge, and an editable foreign checkbox, same as Intake
-used to show (see section 6b). A "re-match" link is always available (whether auto-matched or
-not) to open the TMDb candidate picker and correct a wrong auto-match or match one TMDb couldn't
-find automatically; confirming from here returns you to Incoming, not Intake. Once matched,
-additionally show the **proposed destination category** (`Blurays` if BDMV, else `Foreign` if the
-foreign checkbox is set, else `4K`/`1080p` by resolution - same rule as section 1.1) and a **"Move
-to staging"** button. Clicking it moves the raw item (unchanged - no renaming, no remuxing yet)
-into `staging/<category>/`, blocking with the same "destination already exists" collision state
-as elsewhere if something with that name already exists there. On a successful move, `status`
-becomes `discovered` and the row disappears from Incoming, appearing on Intake instead.
+search result (section 5) - most items arrive already matched, needing no action. The Intake
+screen itself (section 11) is a thin list - poster thumbnail, title/year or raw name, match
+status, delete button; clicking a row opens the movie detail page, where resolution/HDR/audio
+probing, the editable foreign checkbox, the "re-match" link, and the **"Move to staging"** action
+all live. Clicking "Move to staging" moves the raw item (unchanged - no renaming, no remuxing
+yet) into `staging/<category>/` (`Blurays` if BDMV, else `Foreign` if the foreign checkbox is
+set, else `4K`/`1080p` by resolution - section 1.1), blocking with the same "destination already
+exists" collision state as elsewhere if something with that name already exists there. On a
+successful move, `status` becomes `discovered` and the movie moves from Intake to Workbench.
 
 `completed/` and `staging/` are on the same filesystem, so this move is a plain rename, not a
 copy+verify+delete - no background job/progress needed, it's effectively instant regardless of
 file size.
 
-### 6b. Stage 1 — Intake screen
+### 6b. Stage 1 — Workbench
 
-Lists all `status = discovered` movies - i.e. already TMDb-matched and sitting in
-`staging/<category>/`, per Stage 0 above. For each item show:
-- Proposed IMDb-style filename (clean title + year) and poster thumbnail
-- Type badge: `BDMV (unmuxed)` / `MKV` / `MP4 (needs container remux)`
-- Resolution + 4K HDR flavor if detected (`HDR10`, `DV`, `HDR10+`, `SDR`) — best-effort, may show
-  "unknown" if `ffprobe`/DV detection is inconclusive; that's fine, don't block on it
-- Audio track summary (language + codec + channels per track, e.g. `English DTS-HD MA 5.1,
-  Russian AC3 5.1, Commentary (English) AC3 2.0`)
-- Foreign checkbox (defaulted from TMDb `original_language`, editable) - overriding here still
-  does not re-trigger a re-match or move, only affects the audio-track-retention rule
-- A "re-match" link back to the same TMDb picker, in case the Stage 0 match was wrong
-- Select checkbox (for bulk actions) + per-row delete button
-
-Bulk actions bar: select all / none, "Delete selected", "Pre-process selected".
+Lists all `status IN (discovered, preprocessed)` movies - i.e. already TMDb-matched, sitting in
+`staging/<category>/`, and somewhere between "ready to pre-process" and "ready to process audio."
+Like Intake, the Workbench screen itself (section 11) is a thin list with a live progress bar for
+whichever movie has an active job; all of the detail - proposed filename, type badge
+(`BDMV (unmuxed)` / `MKV` / `MP4 (needs container remux)`), resolution/HDR flavor, audio track
+summary, foreign checkbox, re-match link, and the single next action (Pre-process / Choose BDMV
+playlist / Process audio) - lives on the movie detail page (section 11), opened by clicking the
+row.
 
 ---
 
@@ -222,10 +220,11 @@ flags — parse this into the `progress_pct` field rather than just spinning).
 
 ## 8. Stage 2 — Processing (audio track cleanup)
 
-Screen lists all `status = preprocessed` movies, showing resolution badge (1080p/4K) and
-foreign badge, with select/deselect all-or-individual.
+These movies appear in the Workbench (section 6b/11) alongside pre-processing-ready ones; the
+resolution/foreign badges live on the movie detail page, along with the single "Process audio"
+action that triggers the job below.
 
-For each selected movie, background job:
+For the selected movie, background job:
 1. `mkvmerge -J` (or `ffprobe`) to enumerate audio tracks with language tags.
 2. Determine keep-set per the rule in section 1.2:
    - Keep every track tagged English.
@@ -243,13 +242,16 @@ Progress shown per job as above.
 
 ## 9. Stage 3 — Library
 
-Screen lists all `status = processed` movies (select/deselect all-or-individual).
+The Ready for Library queue (section 11) lists all `status = processed` movies - i.e. fully
+prepped, waiting to be committed. Rather than per-movie selection, there's a single "Commit all
+to library" action that runs the steps below for every movie in the queue at once (each still an
+independent job/collision-block - one movie's collision doesn't hold up the others):
 
-For each selected:
 1. **Move** (not copy) the whole movie folder to `$ENCODES4K` if resolution is 2160p, else
    `$ENCODES`. If the destination folder already exists, this movie is blocked with the same
    "destination already exists" collision state as section 1.4/7 — resolve manually (e.g. delete
-   the old copy from Plex/the library) and re-trigger.
+   the old copy from Plex/the library) and re-trigger (re-running "Commit all" picks up only the
+   movies still stuck at `processed`).
 2. Update SQLite: `status = in_library`.
 
 Show progress. A cross-filesystem move (source SSD → NAS-backed `$ENCODES`) is really a copy +
@@ -270,36 +272,50 @@ sure (not a silent single-click delete) — that's a UI safety minimum, not a "d
 
 ## 11. UI
 
-**Revised from the original per-stage-screen design.** The five separate screens (Incoming,
-Intake, Pre-processing, Processing, Library) were built first and worked, but in practice didn't
-"flow" - following one movie's actual journey meant hopping across five disconnected pages, each
-showing a different slice of state with no thread connecting them (a job's progress lived in a
-separate table you had to correlate by movie name; confirming a match could redirect you to a
-screen your movie wasn't even on). The stages/statuses described in sections 6-10 are still
+**Revised twice now.** The original five separate screens (Incoming, Intake, Pre-processing,
+Processing, Library) worked but didn't "flow" - hopping across five disconnected pages per movie,
+with a job's progress living in a separate table you had to correlate by name. That was collapsed
+into a single "Movies" dashboard table with bulk selection and filter chips. In practice, though,
+usage is never bulk - only 2-3 movies are ever in flight at once, worked one at a time - so the
+bulk-selection model was solving a problem that didn't exist, while burying real problems: a
+collision's conflicting path vanished the moment you dismissed its error job, the Foreign
+checkbox silently did two different things depending on when you toggled it, and BDMV movies
+couldn't even be bulk-selected in the first place. The stages/statuses in sections 6-10 are still
 accurate - `incoming` -> `discovered` -> `preprocessed` -> `processed` -> `in_library` - only the
-*presentation* changed: one screen instead of five.
+*presentation* changed again, this time to match how the tool is actually used: three thin queues
+plus one rich page where all real work happens.
 
-- **One "Movies" screen**, not five. Every tracked movie shows in one table regardless of stage.
-  Each row computes a single `state` (needs_match / ready_stage / ready_preprocess(_bdmv) /
-  ready_process / ready_library / in_progress / error / done) from its status + collision flag +
-  most recent job, and shows exactly one contextual action for that state - a link (Match, Choose
-  playlist) or a form (Move to staging / Pre-process / Process / Move to library), never more
-  than one at a time. An active job replaces the action with a live progress bar directly on that
-  row (still polling `/api/jobs/<id>`, reloading the page once the job reaches done/error so the
-  row picks up its new state). An errored job shows Retry (re-posts to whichever bulk endpoint
-  matches the job's type) and Dismiss (removes just the stale job row) instead.
-- **Filter chips** (All / Needs Attention / In Progress / Ready / Done) narrow the same table
-  client-side - no navigation, no separate URL.
-- **Bulk actions** work per action type: checking rows with the same next action (e.g. several
-  "ready to process") enables that action's button in the bulk toolbar with a live count; rows
-  needing different actions don't interfere with each other.
+- **Intake** (`status = incoming`) - a minimal list: poster, title/year (or the raw parsed name
+  if unmatched yet), a status badge, delete. Click a row to open its detail page.
+- **Workbench** (`status IN (discovered, preprocessed)`) - the 2-3-movies-in-flight set. Same
+  minimal list, plus a live progress bar (polling `/api/jobs/<id>`, page reload on done/error)
+  for whichever row has an active job. No hard cap on how many can be in the Workbench at once -
+  it's just wherever the natural workflow leaves things.
+- **Ready for Library** (`status = processed`) - everything fully prepped. One "Commit all to
+  library" button (with an are-you-sure confirmation, since this step deletes the staging source
+  once the copy verifies) rather than per-movie selection - see section 9.
+- **Movie detail page** (one per movie, `/movies/<id>`) - where the actual work happens,
+  regardless of stage:
+  - Full info always visible at once - match status, type/resolution/HDR/audio, the Foreign
+    checkbox (labeled with what it currently affects: staging category before the move, only
+    audio-track retention after), and the *previous* job's error message if any - rather than
+    collapsing everything to a single badge.
+  - A persistent collision banner shows the exact conflicting destination path (stored on the
+    movie row - section 1.4 - so it survives dismissing the error job), not just a generic
+    warning icon.
+  - One next-action button per stage (Match / Move to staging / Pre-process / Process audio),
+    which doubles as Retry - resubmitting is safe even without dismissing the old error first,
+    since a job in `error` status doesn't block a new one.
+  - Retry (same button, re-post) + Dismiss (clears the stale job row without resubmitting,
+    falling back to the plain ready-to-act state) on an errored job.
+  - Delete, same are-you-sure requirement as everywhere else.
 - The TMDb match picker and the BDMV playlist picker remain their own focused sub-pages (a picker
-  is a genuinely different interaction from a list) - both redirect back to the Movies screen (or
-  wherever they were opened from) on confirm, via an explicit `return_to` value rather than
+  is a genuinely different interaction from a list) - both redirect back to the movie detail page
+  (or wherever they were opened from) on confirm, via an explicit `return_to` value rather than
   relying on the browser's `Referer` header.
 - Dark/light toggle, persisted client-side, unchanged.
-- Poster art: fetched from TMDb and cached locally (section 12 polish), shown as a thumbnail per
-  row.
+- Poster art: fetched from TMDb and cached locally (section 12 polish) - a thumbnail on the list
+  views, larger on the detail page.
 
 ---
 
