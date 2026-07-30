@@ -120,6 +120,11 @@ def create_app():
                 jobs.submit_job(movie_id, "process", audio_processing.process_audio)
             except jobs.JobAlreadyRunning:
                 pass
+        elif movie["status"] == "processed":
+            try:
+                jobs.submit_job(movie_id, "library_move", library_job.library_move)
+            except jobs.JobAlreadyRunning:
+                pass
 
         return redirect(url_for("movie_detail", movie_id=movie_id))
 
