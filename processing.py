@@ -91,6 +91,19 @@ def process_audio(movie_id, progress):
         if not keep_ids:
             raise RuntimeError("no audio tracks matched the retention rule - refusing to strip all audio")
 
+        all_audio_ids = [t["id"] for t in tracks if t.get("type") == "audio"]
+        if set(keep_ids) == set(all_audio_ids):
+            # Every audio track already matches the retention rule - a
+            # remux here would just read and rewrite the whole file for no
+            # benefit.
+            progress(100, "no audio tracks to strip")
+            conn.execute(
+                "UPDATE movies SET status = 'processed', updated_at = datetime('now') WHERE id = ?",
+                (movie_id,),
+            )
+            conn.commit()
+            return
+
         progress(10, "stripping audio tracks")
         tmp_output = mkv_path.with_suffix(".tmp.mkv")
         _run_mkvmerge_strip(mkv_path, tmp_output, keep_ids, progress)
