@@ -6,6 +6,7 @@ from pathlib import Path
 
 import config
 import db
+import probe
 
 FFMPEG_TIMEOUT = 6 * 60 * 60
 DURATION_TOLERANCE_SECONDS = 2.0
@@ -211,16 +212,22 @@ def preprocess_bdmv(movie_id, progress, playlist_filename):
         progress(90, "cleaning up extra files")
         _cleanup_extra_files(working_folder, output_path)
 
+        progress(93, "refreshing media info")
+        inspection = probe.inspect_media(str(output_path), "mkv")
+
         progress(95, "moving to destination")
         final_path = _move_to_destination(conn, movie_id, movie, working_folder, folder_name)
 
         conn.execute(
             """
             UPDATE movies SET status = 'preprocessed', final_path = ?, collision = 0, collision_path = NULL,
+                resolution = COALESCE(?, resolution),
+                hdr_flavor = COALESCE(?, hdr_flavor),
+                audio_summary = COALESCE(?, audio_summary),
                 updated_at = datetime('now')
             WHERE id = ?
             """,
-            (str(final_path), movie_id),
+            (str(final_path), inspection["resolution"], inspection["hdr_flavor"], inspection["audio_summary"], movie_id),
         )
         conn.commit()
         progress(100, "done")
@@ -294,16 +301,22 @@ def preprocess_mp4(movie_id, progress):
         progress(90, "cleaning up extra files")
         _cleanup_extra_files(working_folder, output_path)
 
+        progress(93, "refreshing media info")
+        inspection = probe.inspect_media(str(output_path), "mkv")
+
         progress(95, "moving to destination")
         final_path = _move_to_destination(conn, movie_id, movie, working_folder, folder_name)
 
         conn.execute(
             """
             UPDATE movies SET status = 'preprocessed', final_path = ?, collision = 0, collision_path = NULL,
+                resolution = COALESCE(?, resolution),
+                hdr_flavor = COALESCE(?, hdr_flavor),
+                audio_summary = COALESCE(?, audio_summary),
                 updated_at = datetime('now')
             WHERE id = ?
             """,
-            (str(final_path), movie_id),
+            (str(final_path), inspection["resolution"], inspection["hdr_flavor"], inspection["audio_summary"], movie_id),
         )
         conn.commit()
         progress(100, "done")

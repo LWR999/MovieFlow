@@ -102,9 +102,19 @@ def process_audio(movie_id, progress):
         progress(95, "replacing original file")
         tmp_output.replace(mkv_path)
 
+        progress(97, "refreshing media info")
+        inspection = probe.inspect_media(str(mkv_path), "mkv")
+
         conn.execute(
-            "UPDATE movies SET status = 'processed', updated_at = datetime('now') WHERE id = ?",
-            (movie_id,),
+            """
+            UPDATE movies SET status = 'processed',
+                resolution = COALESCE(?, resolution),
+                hdr_flavor = COALESCE(?, hdr_flavor),
+                audio_summary = COALESCE(?, audio_summary),
+                updated_at = datetime('now')
+            WHERE id = ?
+            """,
+            (inspection["resolution"], inspection["hdr_flavor"], inspection["audio_summary"], movie_id),
         )
         conn.commit()
         progress(100, "done")
