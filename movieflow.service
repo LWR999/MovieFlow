@@ -1,0 +1,18 @@
+[Unit]
+Description=MovieFlow (MKV Manager)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=dl
+Group=dl
+WorkingDirectory=/home/dl/development/MovieFlow
+Environment=ENCODES=/home/dl/synology/karuizawa/movies/1080p
+Environment=ENCODES4K=/home/dl/synology/karuizawa/movies/4KHDR
+ExecStart=/usr/bin/python3 /home/dl/development/MovieFlow/app.py
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
