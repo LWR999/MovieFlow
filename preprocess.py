@@ -278,7 +278,18 @@ def preprocess_mp4(movie_id, progress):
 
         if source_file.suffix.lower() == ".mkv":
             # Already the right container - a container remux would just
-            # read and rewrite the whole file for no benefit. Rename only.
+            # read and rewrite the whole file for no benefit. Rename only,
+            # but still verify it's a valid, playable file first - a dead
+            # or truncated download can be non-empty on disk while having
+            # no real video/audio content.
+            progress(10, "verifying source")
+            try:
+                duration = _ffprobe_duration(source_file)
+            except Exception:
+                duration = None
+            if not duration:
+                raise RuntimeError(f"source file is not valid/playable media: {source_file}")
+
             progress(50, "renaming to final filename")
             if source_file != output_path:
                 source_file.rename(output_path)
