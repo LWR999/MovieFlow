@@ -49,6 +49,11 @@ def _keep_audio_track_ids(tracks, is_foreign, original_language):
             keep_ids.append(t["id"])
         elif is_foreign and lang in original_codes:
             keep_ids.append(t["id"])
+        elif lang in ("", "und"):
+            # Language couldn't be determined - we can't safely judge
+            # whether this track is droppable, so keep it rather than
+            # risk stripping the only audio track a file has.
+            keep_ids.append(t["id"])
     return keep_ids
 
 
