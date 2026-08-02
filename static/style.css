@@ -7,17 +7,6 @@
     --muted: #6b6b70;
 }
 
-@media (prefers-color-scheme: dark) {
-    :root {
-        --bg: #17171a;
-        --fg: #eaeaec;
-        --card-bg: #232327;
-        --border: #38383d;
-        --accent: #5b93ff;
-        --muted: #9a9a9f;
-    }
-}
-
 :root[data-theme="light"] {
     --bg: #f5f5f7;
     --fg: #1c1c1e;
