@@ -16,10 +16,31 @@ def discover_incoming_items(root=None):
     return scanner.scan_folder_entries(root, skip_names={"TV"})
 
 
-def _auto_match(title, year):
-    """Best-effort auto-match against TMDb's top search result. Returns a
-    dict of match fields to apply, or None if no candidate was found or the
-    search failed - the item just falls back to the manual needs-match flow."""
+def _auto_match(title, year, imdb_id=None):
+    """Best-effort auto-match. The release's own IMDb id (if the folder name
+    carried one) is authoritative - use it directly rather than risk a wrong
+    fuzzy match. Otherwise fall back to TMDb's top title/year search result.
+    Returns a dict of match fields to apply, or None if nothing matched or
+    the lookup failed - the item just falls back to the manual needs-match
+    flow."""
+    if imdb_id:
+        try:
+            found = tmdb.find_by_imdb_id(imdb_id)
+        except tmdb.TMDbError:
+            found = None
+        if found:
+            is_foreign = 1 if found["original_language"] and found["original_language"] != "en" else 0
+            return {
+                "tmdb_id": found["tmdb_id"],
+                "imdb_id": imdb_id,
+                "title": found["title"],
+                "year": found["year"],
+                "clean_title": naming.clean_title(found["title"]),
+                "original_language": found["original_language"],
+                "poster_path": found["poster_path"],
+                "is_foreign": is_foreign,
+            }
+
     if not title or not title.strip():
         return None
     try:
@@ -54,7 +75,7 @@ def sync_incoming(conn):
     for item in discover_incoming_items():
         if item["original_path"] in existing:
             continue
-        title, year = scanner.parse_title_year(item["raw_name"])
+        title, year, imdb_id = scanner.parse_title_year(item["raw_name"])
         inspection = probe.inspect_media(item["original_path"], item["source_type"])
 
         cur = conn.execute(
@@ -70,7 +91,7 @@ def sync_incoming(conn):
         )
         movie_id = cur.lastrowid
 
-        match = _auto_match(title, year)
+        match = _auto_match(title, year, imdb_id)
         if match:
             conn.execute(
                 """

@@ -48,3 +48,20 @@ def search_movies(query, year=None, limit=5):
 def get_external_ids(tmdb_id):
     data = _get(f"/movie/{tmdb_id}/external_ids")
     return {"imdb_id": data.get("imdb_id")}
+
+
+def find_by_imdb_id(imdb_id):
+    data = _get(f"/find/{imdb_id}", params={"external_source": "imdb_id"})
+    results = data.get("movie_results") or []
+    if not results:
+        return None
+    r = results[0]
+    release_date = r.get("release_date") or ""
+    release_year = int(release_date[:4]) if release_date[:4].isdigit() else None
+    return {
+        "tmdb_id": r["id"],
+        "title": r.get("title"),
+        "year": release_year,
+        "poster_path": r.get("poster_path"),
+        "original_language": r.get("original_language"),
+    }

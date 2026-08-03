@@ -20,10 +20,28 @@ QUALITY_RE = re.compile(
     re.IGNORECASE,
 )
 YEAR_RE = re.compile(r"\(?(?<!\d)(19\d{2}|20\d{2})(?!\d)\)?")
+TAG_RE = re.compile(r"\{([^{}]*)\}")
+IMDB_TAG_RE = re.compile(r"imdb-(tt\d+)", re.IGNORECASE)
 
 
 def parse_title_year(raw_name):
+    """Returns (title, year, imdb_id). Release names sometimes carry
+    {imdb-ttXXXXXXX} (and similar {...} tags e.g. {edition-...}) - the imdb
+    id is our most reliable match signal when present, so pull it out; any
+    other bracketed tag is just noise for title/year parsing and gets
+    dropped."""
     name = raw_name.replace(".", " ").replace("_", " ")
+
+    imdb_id = None
+
+    def _strip_tag(m):
+        nonlocal imdb_id
+        tag_match = IMDB_TAG_RE.fullmatch(m.group(1).strip())
+        if tag_match:
+            imdb_id = tag_match.group(1).lower()
+        return ""
+
+    name = TAG_RE.sub(_strip_tag, name)
 
     quality_match = QUALITY_RE.search(name)
     if quality_match:
@@ -37,7 +55,7 @@ def parse_title_year(raw_name):
         name = name[:last.start()] + name[last.end():]
 
     title = re.sub(r"\s+", " ", name).strip(" -")
-    return title, year
+    return title, year, imdb_id
 
 
 def _find_first_video_suffix(folder: Path):
@@ -109,7 +127,7 @@ def sync_discovered(db):
     for item in discover_items():
         if item["original_path"] in existing:
             continue
-        title, year = parse_title_year(item["raw_name"])
+        title, year, _ = parse_title_year(item["raw_name"])
         inspection = probe.inspect_media(item["original_path"], item["source_type"])
         db.execute(
             """
